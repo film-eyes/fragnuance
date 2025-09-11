@@ -1,27 +1,39 @@
-import { Outlet, NavLink } from "react-router-dom";
+import { Link, Outlet, NavLink } from "react-router-dom";
 
 export default function RootLayout() {
   return (
-    <div className="min-h-screen bg-white text-ink-900">
-      <header className="border-b border-black/10">
-        <div className="wrap flex items-center justify-between py-4">
-          <div className="font-serif text-xl tracking-wide">FRAGNUANCE</div>
-          <nav className="flex gap-6 text-sm">
-            <NavLink to="/" end className="hover:opacity-60">Главная</NavLink>
-            <NavLink to="/projects" className="hover:opacity-60">Проекты</NavLink>
-            <NavLink to="/formulas" className="hover:opacity-60">Формулы</NavLink>
-            <NavLink to="/ingredients" className="hover:opacity-60">Ингредиенты</NavLink>
+    <div className="min-h-screen flex flex-col">
+      {/* Хедер */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b">
+        <div className="h-20 flex items-center justify-between px-6">
+          <Link to="/" className="font-serif text-xl tracking-wide">
+            FRAGNUANCE
+          </Link>
+          <nav className="flex items-center gap-6 text-sm">
+            <NavLink to="/" end className={({ isActive }) => (isActive ? "underline" : "")}>
+              Главная
+            </NavLink>
+            <NavLink to="/projects" className={({ isActive }) => (isActive ? "underline" : "")}>
+              Проекты
+            </NavLink>
+            <NavLink to="/formulas" className={({ isActive }) => (isActive ? "underline" : "")}>
+              Формулы
+            </NavLink>
+            <NavLink to="/ingredients" className={({ isActive }) => (isActive ? "underline" : "")}>
+              Ингредиенты
+            </NavLink>
           </nav>
         </div>
       </header>
 
-      {/* ВНИМАНИЕ: контейнер только здесь */}
-      <main className="wrap py-10">
+      {/* Контент — без контейнера */}
+      <main className="flex-1">
         <Outlet />
       </main>
 
-      <footer className="border-t border-black/10">
-        <div className="wrap py-6 text-xs text-black/50">© 2025 Fragnuance</div>
+      {/* Футер */}
+      <footer className="border-t py-6 text-sm text-neutral-500 px-6 text-center">
+        © 2025 Fragnuance
       </footer>
     </div>
   );

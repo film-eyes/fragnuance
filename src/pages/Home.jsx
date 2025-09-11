@@ -1,39 +1,41 @@
+import { Link } from "react-router-dom";
+
 export default function Home() {
   return (
-    <div
-      className="relative h-screen bg-cover bg-center flex flex-col items-center justify-center text-center px-4"
+    <section
+      className="relative min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center text-center"
       style={{ backgroundImage: "url('/images/perfume-hero.png')" }}
     >
-      {/* Контент */}
-      <div className="relative z-10">
-        <h1 className="text-5xl font-serif mb-6 text-black drop-shadow-md">
-          Fragnuance
-        </h1>
-        <p className="max-w-xl text-lg mb-8 text-black drop-shadow-md">
-          Исследование ароматов, формулы и ингредиенты — в одном месте.
+      {/* затемнение по желанию */}
+      <div className="absolute inset-0 bg-white/20" />
+
+      <div className="relative z-10 max-w-2xl mx-auto px-6">
+        <h1 className="font-serif text-4xl md:text-5xl mb-4">Fragnuance</h1>
+        <p className="text-base md:text-lg text-neutral-800 mb-8">
+          Исследование ароматов, формулы и ингредиенты — в одном месте. 
           Внимательный, минималистичный инструмент для парфюмерных экспериментов.
         </p>
-        <div className="space-x-4">
-          <a
-            href="/projects"
-            className="px-6 py-2 border rounded-full bg-white/70 hover:bg-black hover:text-white transition"
+        <div className="flex justify-center gap-4">
+          <Link
+            to="/projects"
+            className="rounded-full border px-5 py-2 text-sm hover:bg-black hover:text-white transition"
           >
             Проекты
-          </a>
-          <a
-            href="/formulas"
-            className="px-6 py-2 border rounded-full bg-white/70 hover:bg-black hover:text-white transition"
+          </Link>
+          <Link
+            to="/formulas"
+            className="rounded-full border px-5 py-2 text-sm hover:bg-black hover:text-white transition"
           >
             Формулы
-          </a>
-          <a
-            href="/ingredients"
-            className="px-6 py-2 border rounded-full bg-white/70 hover:bg-black hover:text-white transition"
+          </Link>
+          <Link
+            to="/ingredients"
+            className="rounded-full border px-5 py-2 text-sm hover:bg-black hover:text-white transition"
           >
             Ингредиенты
-          </a>
+          </Link>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
