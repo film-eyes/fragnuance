@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* База: сглаживание и аккуратные заголовки */
+@layer base {
+  html, body {
+    @apply h-full;
+  }
+  body {
+    @apply bg-white text-ink-900 antialiased;
+  }
+  h1,h2,h3,h4 {
+    @apply font-serif tracking-tight;
+  }
+  h1 { @apply text-4xl sm:text-5xl; }
+  h2 { @apply text-2xl sm:text-3xl; }
+  p  { @apply leading-relaxed; }
+}
+
+/* Кнопки, если нужно */
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-full border border-black/20 px-4 py-2 text-sm transition-colors;
+  }
+  .btn:hover {
+    @apply border-black;
+  }
+}
+
+@layer components {
+  .wrap { @apply container max-w-6xl; }
+}
