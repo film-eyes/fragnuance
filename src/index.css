@@ -31,3 +31,11 @@
 @layer components {
   .wrap { @apply container max-w-6xl; }
 }
+
+@layer components {
+  .btn-outline {
+    @apply inline-flex items-center gap-2 rounded-full border border-neutral-300/80
+           px-4 py-2 text-sm text-neutral-800 hover:border-neutral-900
+           hover:text-neutral-900 transition-colors duration-200;
+  }
+}
