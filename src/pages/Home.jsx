@@ -1,45 +1,42 @@
 export default function Home() {
   return (
-    <section className="relative">
-      {/* фоновая картинка */}
-      <div
-        className="absolute inset-0 -z-10 bg-center bg-cover bg-no-repeat opacity-90"
-        style={{ backgroundImage: "url('/images/perfume-hero.png')" }}
-        aria-hidden="true"
-      />
-      {/* легкая вуаль для читаемости */}
-      <div className="absolute inset-0 -z-10 bg-white/70" />
+    <div
+      className="relative h-screen bg-cover bg-center flex flex-col items-center justify-center text-center px-4"
+      style={{ backgroundImage: "url('/images/perfume-hero.png')" }}
+    >
+      {/* Оверлей */}
+      <div className="absolute inset-0 bg-white/60"></div>
 
-      <div className="max-w-5xl mx-auto px-6 py-20">
-        <h1 className="font-serif text-4xl sm:text-5xl tracking-tight mb-6">
-          Главная
+      {/* Контент */}
+      <div className="relative z-10">
+        <h1 className="text-5xl font-serif mb-6 text-black">
+          Fragnuance
         </h1>
-        <p className="text-neutral-700 leading-relaxed max-w-2xl">
+        <p className="max-w-xl text-lg mb-8 text-black/80">
           Исследование ароматов, формулы и ингредиенты — в одном месте.
           Внимательный, минималистичный инструмент для парфюмерных экспериментов.
         </p>
-
-        <div className="mt-8 flex flex-wrap gap-3">
+        <div className="space-x-4">
           <a
             href="/projects"
-            className="btn-outline"
+            className="px-6 py-2 border rounded-full hover:bg-black hover:text-white transition"
           >
             Проекты
           </a>
           <a
             href="/formulas"
-            className="btn-outline"
+            className="px-6 py-2 border rounded-full hover:bg-black hover:text-white transition"
           >
             Формулы
           </a>
           <a
             href="/ingredients"
-            className="btn-outline"
+            className="px-6 py-2 border rounded-full hover:bg-black hover:text-white transition"
           >
             Ингредиенты
           </a>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
