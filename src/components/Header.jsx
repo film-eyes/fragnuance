@@ -93,7 +93,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Выпадающее меню (на всех брейкпоинтах только по бургеру) */}
+      {/* Выпадающее меню (только страницы) */}
       <div
         className={`transition-all duration-300 ${
           open ? "max-h-64 opacity-100" : "pointer-events-none max-h-0 opacity-0"
@@ -103,30 +103,6 @@ export default function Header() {
           <nav className="flex flex-col gap-3">
             {NAV.map((n) => item(n.to, n.label))}
           </nav>
-
-          <div className="mt-3 border-t border-white/15 pt-3">
-            {user ? (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  signOut();
-                }}
-                className="w-full rounded-xl border border-white/50 px-3 py-2 text-sm hover:bg-white/10"
-              >
-                Выйти
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  signInWithGoogle();
-                }}
-                className="w-full rounded-xl border border-white/50 px-3 py-2 text-sm hover:bg-white/10"
-              >
-                Войти через Google
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </header>
