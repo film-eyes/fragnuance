@@ -1,9 +1,9 @@
 // src/components/Header.jsx
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext"; // предполагаем, что он уже есть
+import { useAuth } from "../contexts/AuthContext";
 
-const nav = [
+const NAV = [
   { to: "/projects", label: "Проекты" },
   { to: "/formulas", label: "Формулы" },
   { to: "/ingredients", label: "Ингредиенты" },
@@ -14,16 +14,16 @@ export default function Header() {
   const { user, signInWithGoogle, signOut } = useAuth();
 
   const linkBase =
-    "transition-opacity hover:opacity-90 focus:outline-none focus:opacity-90";
+    "text-sm transition-opacity hover:opacity-90 focus:outline-none focus:opacity-90";
   const linkActive = "opacity-100 underline underline-offset-4";
   const linkInactive = "opacity-90";
 
-  const item = (to: string, label: string) => (
+  const item = (to, label) => (
     <NavLink
       key={to}
       to={to}
       className={({ isActive }) =>
-        `text-sm ${linkBase} ${isActive ? linkActive : linkInactive}`
+        `${linkBase} ${isActive ? linkActive : linkInactive}`
       }
       onClick={() => setOpen(false)}
     >
@@ -36,7 +36,6 @@ export default function Header() {
       <div className="mx-auto flex items-center justify-between px-4 py-3">
         {/* Левый блок: бургер + логотип */}
         <div className="flex items-center gap-3">
-          {/* Бургер */}
           <button
             type="button"
             aria-label="Открыть меню"
@@ -51,24 +50,19 @@ export default function Header() {
             </div>
           </button>
 
-          {/* Лого/название — ведёт на главную */}
           <Link
             to="/"
             className="select-none font-serif text-lg tracking-[0.18em] drop-shadow"
+            onClick={() => setOpen(false)}
           >
             FRAGNUANCE
           </Link>
         </div>
 
-        {/* Правый блок: навигация (десктоп) + профиль */}
-        <div className="flex items-center gap-6">
-          <nav className="hidden md:flex items-center gap-6">
-            {nav.map((n) => item(n.to, n.label))}
-          </nav>
-
-          {/* Профиль/аутентификация */}
+        {/* Правый блок: профиль / вход */}
+        <div className="flex items-center gap-3">
           {user ? (
-            <div className="flex items-center gap-3">
+            <>
               {user.photoURL ? (
                 <img
                   src={user.photoURL}
@@ -87,7 +81,7 @@ export default function Header() {
               >
                 Выйти
               </button>
-            </div>
+            </>
           ) : (
             <button
               onClick={signInWithGoogle}
@@ -99,45 +93,28 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Мобильное выпадающее меню */}
+      {/* Выпадающее меню (на всех брейкпоинтах только по бургеру) */}
       <div
-        className={`md:hidden transition-all duration-300 ${
+        className={`transition-all duration-300 ${
           open ? "max-h-64 opacity-100" : "pointer-events-none max-h-0 opacity-0"
         }`}
       >
         <div className="mx-3 mb-3 rounded-2xl bg-black/25 p-3 ring-1 ring-white/20 backdrop-blur">
           <nav className="flex flex-col gap-3">
-            {nav.map((n) => item(n.to, n.label))}
+            {NAV.map((n) => item(n.to, n.label))}
           </nav>
 
-          {/* Раздел аутентификации в мобильном меню (дублируем для удобства) */}
           <div className="mt-3 border-t border-white/15 pt-3">
             {user ? (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName || user.email || "Профиль"}
-                      className="h-8 w-8 rounded-full ring-1 ring-white/50"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 rounded-full bg-white/20 ring-1 ring-white/50" />
-                  )}
-                  <span className="text-sm opacity-90 truncate">
-                    {user.email || user.displayName}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    signOut();
-                  }}
-                  className="rounded-full border border-white/50 px-3 py-1 text-xs hover:bg-white/10"
-                >
-                  Выйти
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  signOut();
+                }}
+                className="w-full rounded-xl border border-white/50 px-3 py-2 text-sm hover:bg-white/10"
+              >
+                Выйти
+              </button>
             ) : (
               <button
                 onClick={() => {
