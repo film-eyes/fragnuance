@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext.jsx";
-import { db } from "../lib/firebase.js";
+import { db } from "../firebase.js";
 import {
   collection,
   doc,
