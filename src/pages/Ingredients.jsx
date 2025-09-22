@@ -1,19 +1,17 @@
-// src/pages/Ingredients.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../contexts/AuthContext.jsx";
+import { db } from "../firebase.js";
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
+  addDoc,
   updateDoc,
+  deleteDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
 } from "firebase/firestore";
-import { db } from "@/firebase";
-import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
 
 /* ===== Русские подписи при хранении кодов ===== */
 
