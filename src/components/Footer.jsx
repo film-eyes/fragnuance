@@ -1,13 +1,10 @@
-export default function Footer({ transparent }) {
+// src/components/Footer.jsx
+export default function Footer() {
   return (
-    <footer
-      className={`w-full text-center py-4 text-sm ${
-        transparent
-          ? "absolute bottom-0 left-0 right-0 text-white"
-          : "border-t text-gray-500"
-      }`}
-    >
-      © 2025 Fragnuance
+    <footer className="fixed inset-x-0 bottom-0 z-40 bg-transparent border-0">
+      <div className="text-center py-4 text-xs text-white/70 drop-shadow">
+        © 2025 Fragnuance
+      </div>
     </footer>
   );
 }

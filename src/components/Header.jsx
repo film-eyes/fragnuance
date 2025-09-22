@@ -1,110 +1,156 @@
-import { useState, useRef, useEffect } from "react";
+// src/components/Header.jsx
+import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext"; // предполагаем, что он уже есть
+
+const nav = [
+  { to: "/projects", label: "Проекты" },
+  { to: "/formulas", label: "Формулы" },
+  { to: "/ingredients", label: "Ингредиенты" },
+];
 
 export default function Header() {
-  const { user, signIn, signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
+  const { user, signInWithGoogle, signOut } = useAuth();
 
-  // клик вне меню — закрыть
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
+  const linkBase =
+    "transition-opacity hover:opacity-90 focus:outline-none focus:opacity-90";
+  const linkActive = "opacity-100 underline underline-offset-4";
+  const linkInactive = "opacity-90";
 
-  const navLinkClass = ({ isActive }) =>
-    `block px-4 py-2 text-sm transition ${
-      isActive ? "text-black" : "text-gray-700 hover:text-black"
-    }`;
+  const item = (to: string, label: string) => (
+    <NavLink
+      key={to}
+      to={to}
+      className={({ isActive }) =>
+        `text-sm ${linkBase} ${isActive ? linkActive : linkInactive}`
+      }
+      onClick={() => setOpen(false)}
+    >
+      {label}
+    </NavLink>
+  );
 
   return (
-    <header className="relative z-50">
-      <div className="h-20 flex items-center justify-between px-6">
-        {/* ЛЕВАЯ ЧАСТЬ — бургер + бренд */}
-        <div className="flex items-center gap-4">
+    <header className="fixed inset-x-0 top-0 z-50 bg-transparent text-white">
+      <div className="mx-auto flex items-center justify-between px-4 py-3">
+        {/* Левый блок: бургер + логотип */}
+        <div className="flex items-center gap-3">
+          {/* Бургер */}
           <button
+            type="button"
             aria-label="Открыть меню"
-            className="w-10 h-10 inline-flex items-center justify-center rounded-md border hover:bg-black hover:text-white transition"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen((v) => !v);
-            }}
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md ring-1 ring-white/45 hover:ring-white/80 focus:outline-none"
           >
-            {/* иконка-бургер */}
-            <span className="inline-block w-5">
-              <span className="block h-[2px] bg-current mb-1.5"></span>
-              <span className="block h-[2px] bg-current mb-1.5"></span>
-              <span className="block h-[2px] bg-current"></span>
-            </span>
+            <span className="sr-only">Открыть меню</span>
+            <div className="space-y-[5px]">
+              <span className="block h-[2px] w-5 bg-white" />
+              <span className="block h-[2px] w-5 bg-white" />
+              <span className="block h-[2px] w-5 bg-white" />
+            </div>
           </button>
 
-          <Link to="/" className="text-xl font-serif tracking-wide">
+          {/* Лого/название — ведёт на главную */}
+          <Link
+            to="/"
+            className="select-none font-serif text-lg tracking-[0.18em] drop-shadow"
+          >
             FRAGNUANCE
           </Link>
         </div>
 
-        {/* ПРАВАЯ ЧАСТЬ — профиль */}
-        <div className="flex items-center gap-3">
-          {!user ? (
-            <button
-              onClick={signIn}
-              className="rounded-full border px-3 py-1 text-sm hover:bg-black hover:text-white transition"
-            >
-              Войти через Google
-            </button>
-          ) : (
-            <>
-              {user.photoURL && (
+        {/* Правый блок: навигация (десктоп) + профиль */}
+        <div className="flex items-center gap-6">
+          <nav className="hidden md:flex items-center gap-6">
+            {nav.map((n) => item(n.to, n.label))}
+          </nav>
+
+          {/* Профиль/аутентификация */}
+          {user ? (
+            <div className="flex items-center gap-3">
+              {user.photoURL ? (
                 <img
                   src={user.photoURL}
-                  alt=""
-                  className="w-9 h-9 rounded-full object-cover border"
-                  referrerPolicy="no-referrer"
+                  alt={user.displayName || user.email || "Профиль"}
+                  className="h-8 w-8 rounded-full ring-1 ring-white/50"
                 />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-white/20 ring-1 ring-white/50" />
               )}
-              <span className="hidden md:block text-sm text-gray-700">
-                {user.email}
+              <span className="hidden sm:block text-sm opacity-90 truncate max-w-[220px]">
+                {user.email || user.displayName}
               </span>
               <button
                 onClick={signOut}
-                className="rounded-full border px-3 py-1 text-sm hover:bg-black hover:text-white transition"
+                className="rounded-full border border-white/50 px-3 py-1 text-xs hover:bg-white/10"
               >
                 Выйти
               </button>
-            </>
+            </div>
+          ) : (
+            <button
+              onClick={signInWithGoogle}
+              className="rounded-full border border-white/50 px-3 py-1 text-xs hover:bg-white/10"
+            >
+              Войти через Google
+            </button>
           )}
         </div>
       </div>
 
-      {/* ВЫПАДАЮЩЕЕ МЕНЮ (слева, вниз) */}
+      {/* Мобильное выпадающее меню */}
       <div
-        ref={menuRef}
-        className={`absolute left-6 top-20 w-56 overflow-hidden rounded-xl border bg-white/90 backdrop-blur shadow-lg transition-all ${
-          open
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 -translate-y-2 pointer-events-none"
+        className={`md:hidden transition-all duration-300 ${
+          open ? "max-h-64 opacity-100" : "pointer-events-none max-h-0 opacity-0"
         }`}
-        onClick={(e) => e.stopPropagation()}
       >
-        <nav className="py-2">
-          <NavLink to="/" end className={navLinkClass} onClick={() => setOpen(false)}>
-            Главная
-          </NavLink>
-          <NavLink to="/projects" className={navLinkClass} onClick={() => setOpen(false)}>
-            Проекты
-          </NavLink>
-          <NavLink to="/formulas" className={navLinkClass} onClick={() => setOpen(false)}>
-            Формулы
-          </NavLink>
-          <NavLink to="/ingredients" className={navLinkClass} onClick={() => setOpen(false)}>
-            Ингредиенты
-          </NavLink>
-        </nav>
+        <div className="mx-3 mb-3 rounded-2xl bg-black/25 p-3 ring-1 ring-white/20 backdrop-blur">
+          <nav className="flex flex-col gap-3">
+            {nav.map((n) => item(n.to, n.label))}
+          </nav>
+
+          {/* Раздел аутентификации в мобильном меню (дублируем для удобства) */}
+          <div className="mt-3 border-t border-white/15 pt-3">
+            {user ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || user.email || "Профиль"}
+                      className="h-8 w-8 rounded-full ring-1 ring-white/50"
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-white/20 ring-1 ring-white/50" />
+                  )}
+                  <span className="text-sm opacity-90 truncate">
+                    {user.email || user.displayName}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    signOut();
+                  }}
+                  className="rounded-full border border-white/50 px-3 py-1 text-xs hover:bg-white/10"
+                >
+                  Выйти
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  signInWithGoogle();
+                }}
+                className="w-full rounded-xl border border-white/50 px-3 py-2 text-sm hover:bg-white/10"
+              >
+                Войти через Google
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </header>
   );
