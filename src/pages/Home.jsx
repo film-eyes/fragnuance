@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <section
       className="relative min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center text-center"
-      style={{ backgroundImage: "url('/images/perfume-hero.png')" }}
+      style={{ backgroundImage: "url('/images/Main.jpg')" }}
     >
       {/* затемнение по желанию */}
       <div className="absolute inset-0 bg-white/20" />
