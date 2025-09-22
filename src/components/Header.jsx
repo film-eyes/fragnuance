@@ -94,17 +94,17 @@ export default function Header() {
       </div>
 
       {/* Выпадающее меню (только страницы) */}
-      <div
-        className={`transition-all duration-300 ${
-          open ? "max-h-64 opacity-100" : "pointer-events-none max-h-0 opacity-0"
-        }`}
-      >
-        <div className="mx-3 mb-3 rounded-2xl bg-black/25 p-3 ring-1 ring-white/20 backdrop-blur">
-          <nav className="flex flex-col gap-3">
-            {NAV.map((n) => item(n.to, n.label))}
-          </nav>
-        </div>
-      </div>
+<div
+  className={`transition-all duration-300 ${
+    open ? "max-h-64 opacity-100" : "pointer-events-none max-h-0 opacity-0"
+  }`}
+>
+  <div className="ml-3 mt-2 w-full max-w-sm rounded-2xl bg-black/25 p-4 ring-1 ring-white/20 backdrop-blur">
+    <nav className="flex flex-col gap-3">
+      {NAV.map((n) => item(n.to, n.label))}
+    </nav>
+  </div>
+</div>
     </header>
   );
 }
