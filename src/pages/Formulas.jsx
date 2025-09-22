@@ -57,7 +57,7 @@ export default function Formulas() {
       className="relative min-h-screen bg-cover bg-center bg-no-repeat text-white"
       style={{ backgroundImage: "url('/images/Formulas.jpg')" }}
     >
-      <div className="absolute inset-0 bg-black/35" />
+      <div className="absolute inset-0 bg-black/70" />
       <div className="relative z-10 max-w-5xl mx-auto px-6 py-28">
         <h1 className="font-serif text-4xl md:text-5xl mb-6">Формулы</h1>
 
