@@ -1,433 +1,455 @@
-import { Link } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
-import { db } from "../firebase.js";
+
 import {
+  getFirestore,
   collection,
-  doc,
+  query,
+  orderBy,
+  getDocs,
   addDoc,
   updateDoc,
   deleteDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
+  doc,
+  serverTimestamp,
 } from "firebase/firestore";
 
-/* ===== Русские подписи при хранении кодов ===== */
-
-const FAMILY_MAP = {
-  citrus: "Цитрусовые",
-  woody: "Древесные",
-  floral: "Цветочные",
-  aldehydic: "Альдегидные",
-  green: "Зеленые",
-  leather: "Кожаные",
-  abstract: "Абстрактные",
-  gourmand: "Гурманские",
-  fruity: "Фруктовые",
-  aquatic: "Акватические",
-  mineral: "Минеральные",
-  tobacco: "Табачные",
-  amber: "Амбровые",
-  musk: "Мускусные",
-};
-
-const NOTE_MAP = {
-  top: "Верх",
-  heart: "Сердце",
-  base: "База",
-};
-
-const FAMILIES = Object.keys(FAMILY_MAP);
-const NOTES = Object.keys(NOTE_MAP);
-
-const SUB_FILTERS = [
-  { id: "all", label: "все", test: () => true },
-  { id: "lt5", label: "до 5 часов", test: (h) => h < 5 },
-  { id: "5to15", label: "от 5 до 15 часов", test: (h) => h >= 5 && h < 15 },
-  { id: "15to50", label: "от 15 до 50 часов", test: (h) => h >= 15 && h < 50 },
-  { id: "gt50", label: "больше 50 часов", test: (h) => h >= 50 },
+const families = [
+  "цитрусовые",
+  "древесные",
+  "цветочные",
+  "альдегидные",
+  "зеленые",
+  "кожаные",
+  "абстрактные",
+  "гурманские",
+  "фруктовые",
+  "акватические",
+  "минеральные",
+  "табачные",
+  "амбровые",
+  "мускусные",
 ];
 
-function familyLabel(code) {
-  return code ? FAMILY_MAP[code] || code : "-";
-}
-function noteLabel(code) {
-  return code ? NOTE_MAP[code] || code : "-";
-}
+const notes = ["верх", "сердце", "база"];
 
-const emptyForm = {
-  id: "",
-  name: "",
-  family: "",
-  note: "",
-  substantivityHours: "",
-  extraitInputPct: "",
-  comment: "",
-};
+const substantivityOptions = [
+  { value: "до 5 часов", label: "до 5 часов" },
+  { value: "от 5 до 15 часов", label: "от 5 до 15 часов" },
+  { value: "от 15 до 50 часов", label: "от 15 до 50 часов" },
+  { value: "больше 50 часов", label: "больше 50 часов" },
+];
+
+// Небольшой помощник для модалки
+function Modal({ open, onClose, children }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="relative z-[61] w-full max-w-lg rounded-2xl border border-white/15 bg-black/70 p-6 text-white shadow-2xl">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function Ingredients() {
-  const { user, signInWithGoogle } = useAuth();
+  const { user } = useAuth();
+  const db = getFirestore();
+
+  const colRef = useMemo(() => {
+    if (!user?.uid) return null;
+    return collection(db, "users", user.uid, "ingredients");
+  }, [db, user?.uid]);
+
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const [qText, setQText] = useState("");
-  const [fltFamily, setFltFamily] = useState("all");
-  const [fltNote, setFltNote] = useState("all");
-  const [fltSub, setFltSub] = useState("all");
+  // фильтры
+  const [search, setSearch] = useState("");
+  const [familyFilter, setFamilyFilter] = useState("");
+  const [noteFilter, setNoteFilter] = useState("");
+  const [substFilter, setSubstFilter] = useState("");
 
+  // модалка
   const [openForm, setOpenForm] = useState(false);
-  const [form, setForm] = useState({ ...emptyForm });
+  const [editingId, setEditingId] = useState(null);
 
-  const colRef = user
-    ? collection(db, `users/${user.uid}/ingredients`)
-    : undefined;
+  const [form, setForm] = useState({
+    name: "",
+    family: "",
+    note: "",
+    substantivity: "",
+    extraitPercent: "",
+    comment: "",
+  });
+
+  const resetForm = () =>
+    setForm({
+      name: "",
+      family: "",
+      note: "",
+      substantivity: "",
+      extraitPercent: "",
+      comment: "",
+    });
+
+  const startCreate = () => {
+    setEditingId(null);
+    resetForm();
+    setOpenForm(true);
+  };
+
+  const startEdit = (it) => {
+    setEditingId(it.id);
+    setForm({
+      name: it.name ?? "",
+      family: it.family ?? "",
+      note: it.note ?? "",
+      substantivity: it.substantivity ?? "",
+      extraitPercent: it.extraitPercent ?? "",
+      comment: it.comment ?? "",
+    });
+    setOpenForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!colRef) return;
+    if (!confirm("Удалить ингредиент?")) return;
+    await deleteDoc(doc(colRef, id));
+    await load();
+  };
+
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    if (!colRef) return;
+
+    const payload = {
+      name: form.name.trim(),
+      family: form.family || "",
+      note: form.note || "",
+      substantivity: form.substantivity || "",
+      extraitPercent:
+        form.extraitPercent === "" ? "" : Number(form.extraitPercent),
+      comment: form.comment?.trim() || "",
+      updatedAt: serverTimestamp(),
+      createdAt: editingId ? undefined : serverTimestamp(),
+    };
+
+    if (!payload.name) {
+      alert("Укажите название ингредиента");
+      return;
+    }
+
+    if (editingId) {
+      await updateDoc(doc(colRef, editingId), payload);
+    } else {
+      await addDoc(colRef, payload);
+    }
+
+    setOpenForm(false);
+    setEditingId(null);
+    resetForm();
+    await load();
+  };
+
+  const load = async () => {
+    if (!colRef) return;
+    setLoading(true);
+    try {
+      const snap = await getDocs(query(colRef, orderBy("name", "asc")));
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setItems(data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!colRef) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const snap = await getDocs(query(colRef, orderBy("name", "asc")));
-        const data = snap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
-        setItems(data);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    // если юзер ещё не прогрузился — не дёргаем
+    if (!user?.uid) return;
+    // подгружаем
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
   const filtered = useMemo(() => {
-    const subRule = SUB_FILTERS.find((s) => s.id === fltSub) || SUB_FILTERS[0];
-    const t = qText.trim().toLowerCase();
     return items.filter((it) => {
-      if (
-        t &&
-        !`${it.name} ${familyLabel(it.family)} ${noteLabel(it.note)} ${it.comment || ""}`
-          .toLowerCase()
-          .includes(t)
-      ) {
-        return false;
-      }
-      if (fltFamily !== "all" && it.family !== fltFamily) return false;
-      if (fltNote !== "all" && it.note !== fltNote) return false;
-      const h = Number(it.substantivityHours || 0);
-      if (!subRule.test(h)) return false;
-      return true;
+      const bySearch =
+        !search ||
+        it.name?.toLowerCase().includes(search.toLowerCase()) ||
+        it.comment?.toLowerCase().includes(search.toLowerCase());
+
+      const byFamily = !familyFilter || it.family === familyFilter;
+      const byNote = !noteFilter || it.note === noteFilter;
+      const bySubst = !substFilter || it.substantivity === substFilter;
+
+      return bySearch && byFamily && byNote && bySubst;
     });
-  }, [items, qText, fltFamily, fltNote, fltSub]);
-
-  function startCreate() {
-    setForm({ ...emptyForm });
-    setOpenForm(true);
-  }
-  function startEdit(it) {
-    setForm({
-      id: it.id,
-      name: it.name || "",
-      family: it.family || "",
-      note: it.note || "",
-      substantivityHours: it.substantivityHours || "",
-      extraitInputPct: it.extraitInputPct || "",
-      comment: it.comment || "",
-    });
-    setOpenForm(true);
-  }
-
-  async function saveForm(e) {
-    e.preventDefault();
-    if (!colRef) return;
-    const payload = {
-      name: String(form.name).trim(),
-      family: String(form.family || ""),
-      note: String(form.note || ""),
-      substantivityHours: Number(form.substantivityHours) || 0,
-      extraitInputPct: Number(form.extraitInputPct) || 0,
-      comment: String(form.comment || "").trim(),
-      updatedAt: serverTimestamp(),
-      ...(form.id ? {} : { createdAt: serverTimestamp() }),
-    };
-    if (!payload.name) return;
-
-    setLoading(true);
-    try {
-      if (form.id) {
-        await updateDoc(doc(colRef, form.id), payload);
-        setItems((prev) =>
-          prev.map((x) => (x.id === form.id ? { ...x, ...payload } : x))
-        );
-      } else {
-        const ref = await addDoc(colRef, payload);
-        setItems((prev) => [...prev, { ...payload, id: ref.id }]);
-      }
-      setOpenForm(false);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function remove(id) {
-    if (!colRef) return;
-    if (!confirm("Удалить ингредиент?")) return;
-    setLoading(true);
-    try {
-      await deleteDoc(doc(colRef, id));
-      setItems((prev) => prev.filter((x) => x.id !== id));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (!user) {
-    return (
-      <section
-        className="relative min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center text-center"
-        style={{ backgroundImage: "url('/images/Ingredients.jpg')" }}
-      >
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="relative z-10 max-w-xl mx-auto px-6 text-white">
-          <h1 className="font-serif text-4xl md:text-5xl mb-4">Ингредиенты</h1>
-          <p className="opacity-90 mb-6">
-            Войдите, чтобы просматривать и редактировать свои ингредиенты.
-          </p>
-          <button
-            onClick={signInWithGoogle}
-            className="rounded-full border px-5 py-2 text-sm hover:bg-white hover:text-black transition"
-          >
-            Войти через Google
-          </button>
-        </div>
-      </section>
-    );
-  }
+  }, [items, search, familyFilter, noteFilter, substFilter]);
 
   return (
     <section
-      className="relative min-h-screen bg-cover bg-center bg-no-repeat"
+      className="relative min-h-screen bg-cover bg-center bg-no-repeat text-white"
       style={{ backgroundImage: "url('/images/Ingredients.jpg')" }}
     >
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-6 py-20 text-white">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="font-serif text-4xl md:text-5xl">Ингредиенты</h1>
+      <div className="absolute inset-0 bg-black/45" />
+
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-20">
+        <h1 className="font-serif text-4xl md:text-5xl mb-8">Ингредиенты</h1>
+
+        {/* Панель фильтров */}
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <input
+            className="rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none placeholder-white/60"
+            placeholder="Поиск…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <select
+            className="rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+            value={familyFilter}
+            onChange={(e) => setFamilyFilter(e.target.value)}
+          >
+            <option value="">Семейство: все</option>
+            {families.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+            value={noteFilter}
+            onChange={(e) => setNoteFilter(e.target.value)}
+          >
+            <option value="">Нота: все</option>
+            {notes.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+            value={substFilter}
+            onChange={(e) => setSubstFilter(e.target.value)}
+          >
+            <option value="">Субстантивность: все</option>
+            {substantivityOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mb-8">
           <button
             onClick={startCreate}
-            className="rounded-full border px-4 py-2 text-sm hover:bg-white hover:text-black transition"
+            className="rounded-full border border-white/25 bg-black/30 px-4 py-2 text-sm hover:bg-white hover:text-black transition"
           >
             + Добавить ингредиент
           </button>
         </div>
 
-        {/* Фильтры */}
-        <div className="grid md:grid-cols-4 gap-3 mb-8">
-          <input
-            className="bg-transparent border rounded-lg px-4 py-2 outline-none placeholder-white/70"
-            placeholder="Поиск…"
-            value={qText}
-            onChange={(e) => setQText(e.target.value)}
-          />
-          <select
-            className="bg-black/30 border rounded-lg px-4 py-2"
-            value={fltFamily}
-            onChange={(e) => setFltFamily(e.target.value)}
-          >
-            <option value="all">Семейство: все</option>
-            {FAMILIES.map((f) => (
-              <option key={f} value={f}>
-                {FAMILY_MAP[f]}
-              </option>
-            ))}
-          </select>
-          <select
-            className="bg-black/30 border rounded-lg px-4 py-2"
-            value={fltNote}
-            onChange={(e) => setFltNote(e.target.value)}
-          >
-            <option value="all">Нота: все</option>
-            {NOTES.map((n) => (
-              <option key={n} value={n}>
-                {NOTE_MAP[n]}
-              </option>
-            ))}
-          </select>
-          <select
-            className="bg-black/30 border rounded-lg px-4 py-2"
-            value={fltSub}
-            onChange={(e) => setFltSub(e.target.value)}
-          >
-            {SUB_FILTERS.map((s) => (
-              <option key={s.id} value={s.id}>
-                Субстантивность: {s.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Форма */}
-        {openForm && (
-          <form
-            onSubmit={saveForm}
-            className="mb-8 rounded-2xl border border-white/20 bg-black/40 p-4 md:p-6"
-          >
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm opacity-80">Название*</label>
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="bg-transparent border rounded-lg px-3 py-2 outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm opacity-80">Семейство</label>
-                <select
-                  value={form.family}
-                  onChange={(e) => setForm({ ...form, family: e.target.value })}
-                  className="bg-black/30 border rounded-lg px-3 py-2"
-                >
-                  <option value="">—</option>
-                  {FAMILIES.map((f) => (
-                    <option key={f} value={f}>
-                      {FAMILY_MAP[f]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm opacity-80">Нота</label>
-                <select
-                  value={form.note}
-                  onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  className="bg-black/30 border rounded-lg px-3 py-2"
-                >
-                  <option value="">—</option>
-                  {NOTES.map((n) => (
-                    <option key={n} value={n}>
-                      {NOTE_MAP[n]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm opacity-80">Субстантивность, ч</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.substantivityHours}
-                  onChange={(e) =>
-                    setForm({ ...form, substantivityHours: e.target.value })
-                  }
-                  className="bg-transparent border rounded-lg px-3 py-2 outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm opacity-80">
-                  Ввод в парфюмерный экстракт, %
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  value={form.extraitInputPct}
-                  onChange={(e) =>
-                    setForm({ ...form, extraitInputPct: e.target.value })
-                  }
-                  className="bg-transparent border rounded-lg px-3 py-2 outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-2 md:col-span-3">
-                <label className="text-sm opacity-80">Комментарий</label>
-                <textarea
-                  rows={3}
-                  value={form.comment}
-                  onChange={(e) => setForm({ ...form, comment: e.target.value })}
-                  className="bg-transparent border rounded-lg px-3 py-2 outline-none"
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex gap-3">
-              <button
-                type="submit"
-                disabled={loading}
-                className="rounded-full border px-5 py-2 text-sm hover:bg-white hover:text-black transition"
-              >
-                {form.id ? "Сохранить" : "Добавить"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpenForm(false)}
-                className="rounded-full border px-5 py-2 text-sm"
-              >
-                Отмена
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Список карточек */}
-        {loading && items.length === 0 ? (
-          <p className="opacity-70">Загрузка…</p>
+        {/* Список */}
+        {loading ? (
+          <p className="opacity-80">Загрузка…</p>
         ) : filtered.length === 0 ? (
-          <p className="opacity-70">Ничего не найдено</p>
+          <p className="opacity-80">Ничего не найдено.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((it) => (
-              <div
+              <article
                 key={it.id}
-                className="rounded-2xl border border-white/20 bg-black/35 p-4 backdrop-blur-sm"
+                className="rounded-2xl border border-white/15 bg-black/35 p-5"
               >
-                <h3 className="font-serif text-xl mb-1">{it.name}</h3>
-                <div className="space-y-1 text-sm opacity-90">
-                  <p>Семейство: {familyLabel(it.family)}</p>
-                  <p>Нота: {noteLabel(it.note)}</p>
-                  <p>
-                    Субстантивность:{" "}
-                    {typeof it.substantivityHours === "number"
-                      ? `${it.substantivityHours} ч`
-                      : it.substantivityHours || "—"}
-                  </p>
-                  <p>
-                    Ввод в парфюмерный экстракт:{" "}
-                    {typeof it.extraitInputPct === "number"
-                      ? `${it.extraitInputPct}%`
-                      : it.extraitInputPct || "—"}
-                  </p>
-                  {it.comment ? <p>Комментарий: {it.comment}</p> : null}
-                </div>
-                <div className="mt-4 flex gap-2">
+                <h3 className="font-serif text-2xl mb-2">{it.name}</h3>
+                <dl className="space-y-1 text-sm opacity-90">
+                  <div>
+                    <dt className="inline opacity-70">Семейство:</dt>{" "}
+                    <dd className="inline">{it.family || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline opacity-70">Нота:</dt>{" "}
+                    <dd className="inline">{it.note || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline opacity-70">Субстантивность:</dt>{" "}
+                    <dd className="inline">{it.substantivity || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline opacity-70">
+                      Ввод в парфюмерный экстракт:
+                    </dt>{" "}
+                    <dd className="inline">
+                      {it.extraitPercent !== "" && it.extraitPercent != null
+                        ? `${it.extraitPercent}%`
+                        : "—"}
+                    </dd>
+                  </div>
+                  {it.comment ? (
+                    <div>
+                      <dt className="opacity-70">Комментарий:</dt>
+                      <dd>{it.comment}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+
+                <div className="mt-4 flex gap-3">
                   <button
                     onClick={() => startEdit(it)}
-                    className="rounded-full border px-4 py-1.5 text-sm hover:bg-white hover:text-black transition"
+                    className="rounded-full border border-white/25 bg-black/30 px-4 py-1.5 text-sm hover:bg-white hover:text-black transition"
                   >
                     Редактировать
                   </button>
                   <button
-                    onClick={() => remove(it.id)}
-                    className="rounded-full border px-4 py-1.5 text-sm hover:bg-white/10 transition"
+                    onClick={() => handleDelete(it.id)}
+                    className="rounded-full border border-white/25 bg-black/30 px-4 py-1.5 text-sm hover:bg-white hover:text-black transition"
                   >
                     Удалить
                   </button>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}
-
-        <div className="mt-10 text-sm opacity-80 flex gap-4">
-          <Link to="/projects" className="underline hover:opacity-100">
-            → Проекты
-          </Link>
-          <Link to="/formulas" className="underline hover:opacity-100">
-            → Формулы
-          </Link>
-        </div>
       </div>
+
+      {/* Модалка создания/редактирования */}
+      <Modal open={openForm} onClose={() => setOpenForm(false)}>
+        <h3 className="font-serif text-2xl mb-4">
+          {editingId ? "Редактировать ингредиент" : "Новый ингредиент"}
+        </h3>
+
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <div>
+            <label className="block text-sm opacity-80 mb-1">Название</label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={onChange}
+              className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm opacity-80 mb-1">Семейство</label>
+              <select
+                name="family"
+                value={form.family}
+                onChange={onChange}
+                className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+              >
+                <option value="">—</option>
+                {families.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm opacity-80 mb-1">Нота</label>
+              <select
+                name="note"
+                value={form.note}
+                onChange={onChange}
+                className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+              >
+                <option value="">—</option>
+                {notes.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm opacity-80 mb-1">
+              Субстантивность
+            </label>
+            <select
+              name="substantivity"
+              value={form.substantivity}
+              onChange={onChange}
+              className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+            >
+              <option value="">—</option>
+              {substantivityOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm opacity-80 mb-1">
+              Ввод в парфюмерный экстракт (%)
+            </label>
+            <input
+              name="extraitPercent"
+              type="number"
+              step="0.1"
+              min="0"
+              value={form.extraitPercent}
+              onChange={onChange}
+              className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none"
+              placeholder="например, 2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm opacity-80 mb-1">
+              Комментарий
+            </label>
+            <textarea
+              name="comment"
+              value={form.comment}
+              onChange={onChange}
+              rows={3}
+              className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2 outline-none resize-none"
+              placeholder="Заметки…"
+            />
+          </div>
+
+          <div className="mt-6 flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => setOpenForm(false)}
+              className="rounded-full border border-white/25 bg-black/30 px-4 py-2 text-sm hover:bg-white hover:text-black transition"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              className="rounded-full border border-white/25 bg-white/90 text-black px-4 py-2 text-sm hover:bg-white transition"
+            >
+              {editingId ? "Сохранить" : "Добавить"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </section>
   );
 }
