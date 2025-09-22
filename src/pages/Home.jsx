@@ -7,30 +7,30 @@ export default function Home() {
       style={{ backgroundImage: "url('/images/Main.jpg')" }}
     >
       {/* затемнение по желанию */}
-      <div className="absolute inset-0 bg-white/20" />
+      <div className="absolute inset-0 bg-black/20" />
 
       <div className="relative z-10 max-w-2xl mx-auto px-6">
         <h1 className="font-serif text-4xl md:text-5xl mb-4">Fragnuance</h1>
-        <p className="text-base md:text-lg text-neutral-800 mb-8">
+        <p className="text-base md:text-lg text-white">
           Исследование ароматов, формулы и ингредиенты — в одном месте. 
           Внимательный, минималистичный инструмент для парфюмерных экспериментов.
         </p>
         <div className="flex justify-center gap-4">
           <Link
             to="/projects"
-            className="rounded-full border px-5 py-2 text-sm hover:bg-black hover:text-white transition"
+            className="rounded-full border px-5 py-2 text-sm hover:bg-white hover:text-black transition"
           >
             Проекты
           </Link>
           <Link
             to="/formulas"
-            className="rounded-full border px-5 py-2 text-sm hover:bg-black hover:text-white transition"
+            className="rounded-full border px-5 py-2 text-sm hover:bg-white hover:text-black transition"
           >
             Формулы
           </Link>
           <Link
             to="/ingredients"
-            className="rounded-full border px-5 py-2 text-sm hover:bg-black hover:text-white transition"
+            className="rounded-full border px-5 py-2 text-sm hover:bg-white hover:text-black transition"
           >
             Ингредиенты
           </Link>
