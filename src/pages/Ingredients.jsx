@@ -6,7 +6,7 @@ import {
   doc, query, orderBy, where
 } from "firebase/firestore";
 
-import { db } from "../lib/firebase.js";
+import { db } from "../firebase.js";
 import IngredientCard from "../components/IngredientCard.jsx";
 import IngredientModal from "../components/IngredientModal.jsx";
 // если у вас есть отдельный компонент фильтров — оставьте импорт как было
