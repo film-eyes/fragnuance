@@ -1,55 +1,58 @@
-import { memo } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 
-function formatSub(value) {
-  if (value === undefined || value === null || value === "") return "—";
-  const n = Number(value);
-  return Number.isFinite(n) ? `${n} ч` : String(value);
-}
-
-function IngredientCard({ ingredient, onEdit, onDelete }) {
+export default function IngredientCard({ item, onEdit, onDelete, onOpen }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white/80 backdrop-blur-sm p-4 shadow-sm hover:shadow-md transition">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-serif text-lg leading-tight">{ingredient.name}</h3>
-          <p className="text-xs text-black/60">{ingredient.family} • {ingredient.note}</p>
-        </div>
-        <div className="flex gap-1">
+    <article
+      onClick={() => onOpen?.(item)}
+      className="group relative cursor-pointer rounded-xl border border-white/20 bg-white/5 p-4 backdrop-blur transition hover:bg-white/10"
+    >
+      {/* Верхняя строка: название + actions */}
+      <div className="flex items-start gap-3">
+        <h3 className="font-medium text-white/95">{item.name || "—"}</h3>
+        <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => onEdit(ingredient)}
-            className="rounded-md px-2 py-1 text-xs border hover:bg-black hover:text-white transition flex items-center gap-1"
+            className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/10 px-2 py-1 text-xs text-white/90 hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); onEdit?.(item); }}
             title="Редактировать"
           >
-            <Pencil size={14} />
-            Ред.
+            <Pencil size={14} /> Ред.
           </button>
           <button
-            onClick={() => onDelete(ingredient)}
-            className="rounded-md px-2 py-1 text-xs border hover:bg-black hover:text-white transition flex items-center gap-1"
+            className="inline-flex items-center gap-1 rounded-full border border-white/30 bg-white/10 px-2 py-1 text-xs text-white/90 hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); onDelete?.(item); }}
             title="Удалить"
           >
-            <Trash2 size={14} />
-            Удал.
+            <Trash2 size={14} /> Удал.
           </button>
         </div>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <dt className="text-black/50">Субстантивность</dt>
-        <dd className="text-right">{formatSub(ingredient.substantivity)}</dd>
+      {/* Метаданные */}
+      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-white/70">
+        <div className="truncate">
+          <span className="opacity-60">Семейство:</span>{" "}
+          {item.family || "—"}
+        </div>
+        <div className="truncate">
+          <span className="opacity-60">Нота:</span>{" "}
+          {item.note || "—"}
+        </div>
+        <div className="truncate">
+          <span className="opacity-60">Субстантивность:</span>{" "}
+          {item.substantivity != null ? `${item.substantivity} ч` : "—"}
+        </div>
+        <div className="truncate">
+          <span className="opacity-60">Экстракт (%):</span>{" "}
+          {item.dosage || "—"}
+        </div>
+      </div>
 
-        {ingredient.comment ? (
-          <>
-            <dt className="text-black/50">Комментарий</dt>
-            <dd className="text-right truncate" title={ingredient.comment}>
-              {ingredient.comment}
-            </dd>
-          </>
-        ) : null}
-      </dl>
-    </div>
+      {/* Комментарий: показываем 5–6 строк, дальше — скролл */}
+      {item.comment ? (
+        <div className="mt-3 max-h-28 overflow-auto pr-1 text-sm leading-6 text-white/90">
+          {item.comment}
+        </div>
+      ) : null}
+    </article>
   );
 }
-
-export default memo(IngredientCard);

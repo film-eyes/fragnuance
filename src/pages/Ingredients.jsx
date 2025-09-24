@@ -1,153 +1,182 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
-import { db } from "../firebase.js";
 import {
-  collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
+  collection, getDocs, addDoc, updateDoc, deleteDoc,
+  doc, query, orderBy, where
 } from "firebase/firestore";
-import IngredientFilters from "../components/IngredientFilters.jsx";
-import IngredientCard from "../components/IngredientCard.jsx";
-import IngredientFormModal from "../components/IngredientFormModal.jsx";
 
-function inBucket(num, bucketId) {
-  if (!bucketId || bucketId === "all") return true;
-  const n = Number(num);
-  if (!Number.isFinite(n)) return false;
-  if (bucketId === "<8") return n < 8;
-  if (bucketId === "8-24") return n >= 8 && n < 24;
-  if (bucketId === "24-72") return n >= 24 && n <= 72;
-  if (bucketId === ">72") return n > 72;
-  return true;
-}
+import { db } from "../lib/firebase.js";
+import IngredientCard from "../components/IngredientCard.jsx";
+import IngredientModal from "../components/IngredientModal.jsx";
+// если у вас есть отдельный компонент фильтров — оставьте импорт как было
+// import IngredientFilters from "../components/IngredientFilters.jsx";
+
+const families = [
+  "цитрусовые","древесные","цветочные","альдегидные","зеленые","кожаные",
+  "абстрактные","гурманские","фруктовые","акватические","минеральные",
+  "табачные","амбровые","мускусные",
+];
+const notes = ["верх","сердце","база"];
+const durationRanges = [
+  { label: "Любая длительность", value: "any" },
+  { label: "до 5 часов", value: "0-5" },
+  { label: "от 5 до 15 часов", value: "5-15" },
+  { label: "от 15 до 50 часов", value: "15-50" },
+  { label: "больше 50 часов", value: "50+" },
+];
 
 export default function Ingredients() {
   const { user } = useAuth();
+  const colRef = useMemo(() => collection(db, "ingredients"), []);
   const [items, setItems] = useState([]);
-  const [search, setSearch] = useState("");
-  const [family, setFamily] = useState("");
-  const [note, setNote] = useState("");
-  const [subBucket, setSubBucket] = useState("all");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [editItem, setEditItem] = useState(null);
+  // фильтры
+  const [qText, setQText] = useState("");
+  const [qFamily, setQFamily] = useState("");
+  const [qNote, setQNote] = useState("");
+  const [qRange, setQRange] = useState("any");
 
+  // модалка (просмотр)
+  const [openModal, setOpenModal] = useState(false);
+  const [activeItem, setActiveItem] = useState(null);
+
+  // ===== ЗАГРУЗКА =====
   useEffect(() => {
-    if (!user) return;
-    const colRef = collection(db, `users/${user.uid}/ingredients`);
-    const unsub = onSnapshot(colRef, (snap) => {
-      const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setItems(arr);
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [user]);
+    (async () => {
+      setLoading(true);
+      try {
+        const snap = await getDocs(query(colRef, orderBy("name", "asc")));
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setItems(data);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [colRef]);
 
+  // ===== ДОБАВИТЬ/РЕДАКТИРОВАТЬ/УДАЛИТЬ (оставьте вашу реализацию, тут — заглушки) =====
+  const handleAdd = async () => {
+    // откройте вашу форму создания
+    alert("TODO: открыть форму добавления");
+  };
+  const handleEdit = async (item) => {
+    // откройте вашу форму редактирования
+    alert("TODO: открыть форму редактирования");
+  };
+  const handleDelete = async (item) => {
+    if (!confirm(`Удалить "${item.name}"?`)) return;
+    await deleteDoc(doc(db, "ingredients", item.id));
+    setItems(prev => prev.filter(x => x.id !== item.id));
+  };
+
+  // ===== ФИЛЬТРАЦИЯ (клиентская) =====
   const filtered = useMemo(() => {
-    return items
-      .filter((i) => (search ? i.name?.toLowerCase().includes(search.toLowerCase()) : true))
-      .filter((i) => (family ? i.family === family : true))
-      .filter((i) => (note ? i.note === note : true))
-      .filter((i) => inBucket(i.substantivity, subBucket))
-      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ru"));
-  }, [items, search, family, note, subBucket]);
+    return items.filter((it) => {
+      if (qText && !it.name?.toLowerCase().includes(qText.toLowerCase())) return false;
+      if (qFamily && it.family !== qFamily) return false;
+      if (qNote && it.note !== qNote) return false;
 
-  const resetFilters = () => {
-    setSearch("");
-    setFamily("");
-    setNote("");
-    setSubBucket("all");
-  };
-
-  const handleCreate = async (payload) => {
-    if (!user) return;
-    await addDoc(collection(db, `users/${user.uid}/ingredients`), {
-      ...payload,
-      createdAt: Date.now(),
+      if (qRange !== "any") {
+        const s = Number(it.substantivity ?? 0);
+        switch (qRange) {
+          case "0-5": if (!(s >= 0 && s < 5)) return false; break;
+          case "5-15": if (!(s >= 5 && s < 15)) return false; break;
+          case "15-50": if (!(s >= 15 && s < 50)) return false; break;
+          case "50+": if (!(s >= 50)) return false; break;
+          default: break;
+        }
+      }
+      return true;
     });
-    setShowAdd(false);
-  };
+  }, [items, qText, qFamily, qNote, qRange]);
 
-  const handleUpdate = async (payload) => {
-    if (!user || !editItem) return;
-    await updateDoc(doc(db, `users/${user.uid}/ingredients/${editItem.id}`), {
-      ...payload,
-      updatedAt: Date.now(),
-    });
-    setEditItem(null);
-  };
-
-  const handleDelete = async (ing) => {
-    if (!user) return;
-    if (!confirm(`Удалить «${ing.name}»?`)) return;
-    await deleteDoc(doc(db, `users/${user.uid}/ingredients/${ing.id}`));
-  };
-
+  // ===== РЕНДЕР =====
   return (
     <section
       className="relative min-h-screen bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url('/images/Ingredients.jpg')" }}
     >
-      <div className="absolute inset-0 bg-white/40" />
+      {/* затемнение 35% ЧЕРНЫМ */}
+      <div className="absolute inset-0 bg-black/35" />
 
-      <div className="relative z-10 px-4 md:px-8 py-8">
-        <div className="mx-auto max-w-6xl">
-          <header className="mb-4 flex items-center justify-between">
-            <h1 className="font-serif text-3xl">Ингредиенты</h1>
+      <main className="relative z-10 pt-24 md:pt-28">
+        <div className="mx-auto w-[min(1200px,94vw)]">
+          {/* Заголовок + большая кнопка Добавить */}
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h1 className="font-serif text-3xl text-white">Ингредиенты</h1>
+
             <button
-              onClick={() => setShowAdd(true)}
-              className="rounded-full border px-4 py-2 text-sm hover:bg-black hover:text-white transition"
+              onClick={handleAdd}
+              className="block rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm text-white backdrop-blur transition hover:bg-white/20 active:scale-[.98]"
+              title="Добавить ингредиент"
             >
               Добавить
             </button>
-          </header>
+          </div>
 
-          <IngredientFilters
-            search={search} onSearchChange={setSearch}
-            family={family} onFamilyChange={setFamily}
-            note={note} onNoteChange={setNote}
-            subBucket={subBucket} onSubBucketChange={setSubBucket}
-            onReset={resetFilters}
-          />
+          {/* Фильтры */}
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <input
+              value={qText}
+              onChange={(e) => setQText(e.target.value)}
+              placeholder="Поиск по названию…"
+              className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-white placeholder:text-white/60"
+            />
+            <select
+              value={qFamily}
+              onChange={(e) => setQFamily(e.target.value)}
+              className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-white"
+            >
+              <option value="">Все семейства</option>
+              {families.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <select
+              value={qNote}
+              onChange={(e) => setQNote(e.target.value)}
+              className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-white"
+            >
+              <option value="">Все ноты</option>
+              {notes.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <select
+              value={qRange}
+              onChange={(e) => setQRange(e.target.value)}
+              className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-white"
+            >
+              {durationRanges.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
 
-          <div className="mt-4 rounded-2xl border border-black/10 bg-white/60 backdrop-blur-sm p-4">
-            <div className="max-h-[60vh] overflow-y-auto pr-2">
+          {/* ПРОКРУЧИВАЕМАЯ ОБЛАСТЬ со списком карточек */}
+          <div className="rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur">
+            <div className="grid max-h-[calc(100vh-320px)] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 lg:grid-cols-3">
               {loading ? (
-                <p className="text-sm text-black/60 px-1 py-2">Загрузка…</p>
+                <div className="col-span-full py-10 text-center text-white/70">Загрузка…</div>
               ) : filtered.length === 0 ? (
-                <p className="text-sm text-black/60 px-1 py-2">Ничего не найдено.</p>
+                <div className="col-span-full py-10 text-center text-white/60">Ничего не найдено</div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filtered.map((ing) => (
-                    <IngredientCard
-                      key={ing.id}
-                      ingredient={ing}
-                      onEdit={() => setEditItem(ing)}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </div>
+                filtered.map((item) => (
+                  <IngredientCard
+                    key={item.id}
+                    item={item}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onOpen={(it) => { setActiveItem(it); setOpenModal(true); }}
+                  />
+                ))
               )}
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
-      {/* Модалки */}
-      <IngredientFormModal
-        open={showAdd}
-        onCancel={() => setShowAdd(false)}
-        onSubmit={handleCreate}
-      />
-      <IngredientFormModal
-        open={!!editItem}
-        initial={editItem}
-        onCancel={() => setEditItem(null)}
-        onSubmit={handleUpdate}
+      {/* Модалка просмотра карточки */}
+      <IngredientModal
+        open={openModal}
+        item={activeItem}
+        onClose={() => setOpenModal(false)}
       />
     </section>
   );
