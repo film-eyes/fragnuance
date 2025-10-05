@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import {
-  collection, getDocs, addDoc, updateDoc, deleteDoc,
+  collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc,
   doc, query, orderBy, where
 } from "firebase/firestore";
 
