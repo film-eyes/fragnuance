@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import {
-  collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc,
-  doc, query, orderBy, where
+  collection, onSnapshot, addDoc, updateDoc, deleteDoc,
+  doc, query
 } from "firebase/firestore";
 
 import { db } from "../firebase.js";
 import IngredientCard from "../components/IngredientCard.jsx";
 import IngredientModal from "../components/IngredientModal.jsx";
-// если у вас есть отдельный компонент фильтров — оставьте импорт как было
-// import IngredientFilters from "../components/IngredientFilters.jsx";
+import IngredientFormModal from "../components/IngredientFormModal.jsx";
 
 const families = [
   "цитрусовые","древесные","цветочные","альдегидные","зеленые","кожаные",
@@ -38,53 +36,53 @@ export default function Ingredients() {
   const [qNote, setQNote] = useState("");
   const [qRange, setQRange] = useState("any");
 
-  // модалка (просмотр)
+  // модалки
   const [openModal, setOpenModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
+  const [openForm, setOpenForm] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
 
   // ===== ЗАГРУЗКА =====
   useEffect(() => {
-    // 🔹 Функция загрузки ингредиентов
-    const fetchIngredients = async () => {
-      try {
-        // Создаём ссылку на корневую коллекцию
-        const q = query(collection(db, "ingredients"));
+    const q = query(colRef);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setItems(list);
+    });
+    return () => unsubscribe();
+  }, [colRef]);
 
-        // Подписываемся на обновления (реагирует на изменения в реальном времени)
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          const list = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setItems(list);
-        });
-
-        // Возвращаем функцию очистки при размонтировании
-        return () => unsubscribe();
-      } catch (error) {
-        console.error("Ошибка при загрузке ингредиентов:", error);
-      }
-    };
-
-    fetchIngredients();
-  }, []);
-
-  // ===== ДОБАВИТЬ/РЕДАКТИРОВАТЬ/УДАЛИТЬ (оставьте вашу реализацию, тут — заглушки) =====
-  const handleAdd = async () => {
-    // откройте вашу форму создания
-    alert("TODO: открыть форму добавления");
+  // ===== CRUD =====
+  const handleAdd = () => {
+    setEditingItem(null);
+    setOpenForm(true);
   };
-  const handleEdit = async (item) => {
-    // откройте вашу форму редактирования
-    alert("TODO: открыть форму редактирования");
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setOpenForm(true);
   };
+
   const handleDelete = async (item) => {
     if (!confirm(`Удалить "${item.name}"?`)) return;
     await deleteDoc(doc(db, "ingredients", item.id));
     setItems(prev => prev.filter(x => x.id !== item.id));
   };
 
-  // ===== ФИЛЬТРАЦИЯ (клиентская) =====
+  const handleSubmit = async (data) => {
+    if (editingItem) {
+      const ref = doc(db, "ingredients", editingItem.id);
+      await updateDoc(ref, data);
+    } else {
+      await addDoc(colRef, data);
+    }
+    setOpenForm(false);
+  };
+
+  // ===== ФИЛЬТРАЦИЯ =====
   const filtered = useMemo(() => {
     return items.filter((it) => {
       if (qText && !it.name?.toLowerCase().includes(qText.toLowerCase())) return false;
@@ -111,7 +109,6 @@ export default function Ingredients() {
       className="relative min-h-screen bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url('/images/Ingredients.jpg')" }}
     >
-      {/* затемнение 35% ЧЕРНЫМ */}
       <div className="absolute inset-0 bg-black/35" />
 
       <main className="relative z-10 pt-24 md:pt-28">
@@ -162,7 +159,7 @@ export default function Ingredients() {
             </select>
           </div>
 
-          {/* ПРОКРУЧИВАЕМАЯ ОБЛАСТЬ со списком карточек */}
+          {/* ПРОКРУЧИВАЕМАЯ ОБЛАСТЬ */}
           <div className="rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur">
             <div className="grid max-h-[calc(100vh-320px)] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 lg:grid-cols-3">
               {loading ? (
@@ -185,11 +182,19 @@ export default function Ingredients() {
         </div>
       </main>
 
-      {/* Модалка просмотра карточки */}
+      {/* Просмотр */}
       <IngredientModal
         open={openModal}
         item={activeItem}
         onClose={() => setOpenModal(false)}
+      />
+
+      {/* Добавление/редактирование */}
+      <IngredientFormModal
+        open={openForm}
+        initial={editingItem}
+        onCancel={() => setOpenForm(false)}
+        onSubmit={handleSubmit}
       />
     </section>
   );
