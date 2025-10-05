@@ -44,17 +44,30 @@ export default function Ingredients() {
 
   // ===== ЗАГРУЗКА =====
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const snap = await getDocs(query(colRef, orderBy("name", "asc")));
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setItems(data);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [colRef]);
+  // 🔹 Функция загрузки ингредиентов
+  const fetchIngredients = async () => {
+    try {
+      // Создаём ссылку на корневую коллекцию
+      const q = query(collection(db, "ingredients"));
+
+      // Подписываемся на обновления (реагирует на изменения в реальном времени)
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setIngredients(list);
+      });
+
+      // Возвращаем функцию очистки при размонтировании
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Ошибка при загрузке ингредиентов:", error);
+    }
+  };
+
+  fetchIngredients();
+}, []);
 
   // ===== ДОБАВИТЬ/РЕДАКТИРОВАТЬ/УДАЛИТЬ (оставьте вашу реализацию, тут — заглушки) =====
   const handleAdd = async () => {
