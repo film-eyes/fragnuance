@@ -26,7 +26,6 @@ export default function Formulas() {
         ...d.data(),
       }));
 
-      // сортировка по умолчанию
       list.sort((a, b) =>
         (a.name || "").localeCompare(b.name || "", "ru", { sensitivity: "base" })
       );
@@ -64,14 +63,13 @@ export default function Formulas() {
     } else {
       const ref = await addDoc(collection(db, "formulas"), {
         ...data,
-        createdAt: new Date().toISOString(), // 🔹 добавляем дату создания
+        createdAt: new Date().toISOString(),
       });
       setFormulas([...formulas, { id: ref.id, ...data }]);
     }
     setOpenModal(false);
   };
 
-  // --- Сортировка ---
   const sortedFormulas = useMemo(() => {
     const sorted = [...formulas];
     if (sortMode === "alpha") {
@@ -94,97 +92,107 @@ export default function Formulas() {
       {/* затемнение */}
       <div className="absolute inset-0 bg-black/35" />
 
-      <div className="relative z-10 max-w-6xl mx-auto p-6 text-white">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
-          <h1 className="font-serif text-4xl">Формулы</h1>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 border border-white/20 rounded-full px-3 py-1 bg-white/10 backdrop-blur">
+      <main className="relative z-10 pt-24 md:pt-28">
+        <div className="mx-auto w-[min(1200px,94vw)]">
+          {/* Заголовок + сортировка + кнопка */}
+          <div className="mb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <h1 className="font-serif text-3xl text-white">Формулы</h1>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 border border-white/20 rounded-full px-3 py-1 bg-white/10 backdrop-blur">
+                <button
+                  onClick={() => setSortMode("alpha")}
+                  className={`text-sm transition ${
+                    sortMode === "alpha"
+                      ? "text-white"
+                      : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  По алфавиту
+                </button>
+                <span className="text-white/30">|</span>
+                <button
+                  onClick={() => setSortMode("date")}
+                  className={`text-sm transition ${
+                    sortMode === "date"
+                      ? "text-white"
+                      : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  По дате
+                </button>
+              </div>
+
               <button
-                onClick={() => setSortMode("alpha")}
-                className={`text-sm transition ${
-                  sortMode === "alpha"
-                    ? "text-white"
-                    : "text-white/50 hover:text-white/80"
-                }`}
+                onClick={handleAdd}
+                className="block rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm text-white backdrop-blur transition hover:bg-white/20 active:scale-[.98]"
               >
-                По алфавиту
-              </button>
-              <span className="text-white/30">|</span>
-              <button
-                onClick={() => setSortMode("date")}
-                className={`text-sm transition ${
-                  sortMode === "date"
-                    ? "text-white"
-                    : "text-white/50 hover:text-white/80"
-                }`}
-              >
-                По дате
+                Добавить
               </button>
             </div>
-            <button
-              onClick={handleAdd}
-              className="rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm hover:bg-white/20 transition active:scale-[.98]"
-            >
-              + Добавить
-            </button>
+          </div>
+
+          {/* Контент */}
+          <div className="rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur">
+            {loading ? (
+              <div className="py-10 text-center text-white/70">Загрузка…</div>
+            ) : sortedFormulas.length === 0 ? (
+              <div className="py-10 text-center text-white/60">
+                Пока нет формул.
+              </div>
+            ) : (
+              <div className="grid max-h-[calc(100vh-320px)] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 lg:grid-cols-3">
+                {sortedFormulas.map((formula) => (
+                  <div
+                    key={formula.id}
+                    className="bg-white/10 backdrop-blur-md p-4 rounded-xl hover:bg-white/20 transition relative"
+                  >
+                    <h3 className="text-xl font-serif mb-2">{formula.name}</h3>
+                    {formula.description && (
+                      <p className="text-sm text-white/80 mb-2">
+                        {formula.description}
+                      </p>
+                    )}
+                    <p className="text-sm text-white/70">
+                      Ингредиентов: {formula.ingredients?.length || 0}
+                    </p>
+                    <p className="text-sm text-white/70">
+                      Всего капель:{" "}
+                      {formula.ingredients?.reduce(
+                        (s, i) => s + (parseFloat(i.amount) || 0),
+                        0
+                      ) || 0}
+                    </p>
+
+                    {formula.createdAt && (
+                      <p className="text-xs text-white/50 mt-1">
+                        {new Date(formula.createdAt).toLocaleDateString("ru-RU")}
+                      </p>
+                    )}
+
+                    <div className="flex gap-2 absolute top-3 right-3">
+                      <button
+                        onClick={() => handleEdit(formula)}
+                        className="text-blue-400 hover:text-blue-500"
+                        title="Редактировать"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => handleDelete(formula.id)}
+                        className="text-red-400 hover:text-red-600"
+                        title="Удалить"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
-        {loading ? (
-          <p>Загрузка...</p>
-        ) : sortedFormulas.length === 0 ? (
-          <p className="text-white/70">Пока нет формул.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {sortedFormulas.map((formula) => (
-              <div
-                key={formula.id}
-                className="bg-white/10 backdrop-blur-md p-4 rounded-xl hover:bg-white/20 transition relative"
-              >
-                <h3 className="text-xl font-serif mb-2">{formula.name}</h3>
-                {formula.description && (
-                  <p className="text-sm text-white/80 mb-2">
-                    {formula.description}
-                  </p>
-                )}
-                <p className="text-sm text-white/70">
-                  Ингредиентов: {formula.ingredients?.length || 0}
-                </p>
-                <p className="text-sm text-white/70">
-                  Всего капель:{" "}
-                  {formula.ingredients?.reduce(
-                    (s, i) => s + (parseFloat(i.amount) || 0),
-                    0
-                  ) || 0}
-                </p>
-
-                {formula.createdAt && (
-                  <p className="text-xs text-white/50 mt-1">
-                    {new Date(formula.createdAt).toLocaleDateString("ru-RU")}
-                  </p>
-                )}
-
-                <div className="flex gap-2 absolute top-3 right-3">
-                  <button
-                    onClick={() => handleEdit(formula)}
-                    className="text-blue-400 hover:text-blue-500"
-                    title="Редактировать"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    onClick={() => handleDelete(formula.id)}
-                    className="text-red-400 hover:text-red-600"
-                    title="Удалить"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </main>
 
       {/* модалка */}
       <FormulaFormModal
