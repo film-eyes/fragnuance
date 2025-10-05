@@ -1,149 +1,142 @@
-import { useMemo, useState } from "react";
-
-const sorts = [
-  { id: "name", label: "По названию" },
-  { id: "createdDesc", label: "Сначала новые" },
-  { id: "updatedDesc", label: "По дате изменения" },
-];
+import { useEffect, useState } from "react";
+import { db } from "../lib/firebase";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
+import FormulaFormModal from "../components/FormulaFormModal";
 
 export default function Formulas() {
-  const [sortBy, setSortBy] = useState("updatedDesc");
-  const [q, setQ] = useState("");
+  const [formulas, setFormulas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openModal, setOpenModal] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  const [items] = useState([
-    {
-      id: "f1",
-      name: "База для парфюма 20%",
-      notes: "citrus / green",
-      createdAt: 1726500000000,
-      updatedAt: 1726800000000,
-      compositions: {
-        parfum: [{ ingredient: "Бергамот", percent: 4 }, { ingredient: "Гальбанум", percent: 1 }],
-        gel: [{ ingredient: "Лимон", percent: 0.5 }],
-        diffuser: [{ ingredient: "Ветивер", percent: 2 }],
-      },
-      comment: "проверить стойкость",
-    },
-    {
-      id: "f2",
-      name: "Сухой мускус",
-      notes: "musky",
-      createdAt: 1726200000000,
-      updatedAt: 1726400000000,
-      compositions: {
-        parfum: [{ ingredient: "Мускон", percent: 3 }],
-        gel: [],
-        diffuser: [{ ingredient: "Изо Е Супер", percent: 5 }],
-      },
-      comment: "",
-    },
-  ]);
+  // --- Загрузка формул из Firestore ---
+  useEffect(() => {
+    const fetchFormulas = async () => {
+      const snapshot = await getDocs(collection(db, "formulas"));
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setFormulas(list);
+      setLoading(false);
+    };
+    fetchFormulas();
+  }, []);
 
-  const list = useMemo(() => {
-    const base = items
-      .filter(i => i.name.toLowerCase().includes(q.toLowerCase()));
-    switch (sortBy) {
-      case "name":
-        return [...base].sort((a, b) => a.name.localeCompare(b.name));
-      case "createdDesc":
-        return [...base].sort((a, b) => b.createdAt - a.createdAt);
-      default:
-        return [...base].sort((a, b) => b.updatedAt - a.updatedAt);
+  const handleAdd = () => {
+    setEditing(null);
+    setOpenModal(true);
+  };
+
+  const handleEdit = (formula) => {
+    setEditing(formula);
+    setOpenModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (confirm("Удалить формулу?")) {
+      await deleteDoc(doc(db, "formulas", id));
+      setFormulas(formulas.filter((f) => f.id !== id));
     }
-  }, [items, q, sortBy]);
+  };
+
+  const handleSubmit = async (data) => {
+    if (editing) {
+      const ref = doc(db, "formulas", editing.id);
+      await updateDoc(ref, data);
+      setFormulas(
+        formulas.map((f) => (f.id === editing.id ? { ...f, ...data } : f))
+      );
+    } else {
+      const ref = await addDoc(collection(db, "formulas"), data);
+      setFormulas([...formulas, { id: ref.id, ...data }]);
+    }
+    setOpenModal(false);
+  };
 
   return (
     <section
-      className="relative min-h-screen bg-cover bg-center bg-no-repeat text-white"
+      className="relative min-h-screen bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url('/images/Formulas.jpg')" }}
     >
-      <div className="absolute inset-0 bg-black/70" />
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-28">
-        <h1 className="font-serif text-4xl md:text-5xl mb-6">Формулы</h1>
+      {/* затемнение */}
+      <div className="absolute inset-0 bg-black/35" />
 
-        <div className="flex flex-col md:flex-row gap-3 mb-6">
-          <input
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Поиск по названию…"
-            className="w-full md:w-80 rounded-full border border-white/30 bg-white/10 px-4 py-2 placeholder-white/60 backdrop-blur focus:outline-none"
-          />
-
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="w-full md:w-56 rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur"
-          >
-            {sorts.map(s => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
-
+      <div className="relative z-10 max-w-6xl mx-auto p-6 text-white">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="font-serif text-4xl">Формулы</h1>
           <button
-            onClick={() => alert("TODO: модалка «Новая формула» с тремя вкладками: Парфюм / Гель / Диффузор")}
-            className="rounded-full border px-5 py-2 text-sm hover:bg-white hover:text-black transition"
+            onClick={handleAdd}
+            className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition"
           >
-            + Новая формула
+            + Добавить
           </button>
         </div>
 
-        <ul className="space-y-4">
-          {list.map(f => (
-            <li key={f.id} className="rounded-xl border border-white/20 bg-black/20 p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h3 className="font-serif text-xl">{f.name}</h3>
-                <div className="text-xs opacity-70">
-                  upd {new Date(f.updatedAt).toLocaleDateString()}
+        {loading ? (
+          <p>Загрузка...</p>
+        ) : formulas.length === 0 ? (
+          <p className="text-white/70">Пока нет формул.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {formulas.map((formula) => (
+              <div
+                key={formula.id}
+                className="bg-white/10 backdrop-blur-md p-4 rounded-xl hover:bg-white/20 transition relative"
+              >
+                <h3 className="text-xl font-serif mb-2">{formula.name}</h3>
+                {formula.description && (
+                  <p className="text-sm text-white/80 mb-2">
+                    {formula.description}
+                  </p>
+                )}
+                <p className="text-sm text-white/70">
+                  Ингредиентов: {formula.ingredients?.length || 0}
+                </p>
+                <p className="text-sm text-white/70">
+                  Всего капель:{" "}
+                  {formula.ingredients?.reduce(
+                    (s, i) => s + (parseFloat(i.amount) || 0),
+                    0
+                  ) || 0}
+                </p>
+
+                <div className="flex gap-2 absolute top-3 right-3">
+                  <button
+                    onClick={() => handleEdit(formula)}
+                    className="text-blue-400 hover:text-blue-500"
+                    title="Редактировать"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    onClick={() => handleDelete(formula.id)}
+                    className="text-red-400 hover:text-red-600"
+                    title="Удалить"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
-
-              <p className="opacity-80 mt-1">Теги/ноты: {f.notes || "—"}</p>
-
-              {/* три типа в рамках одной формулы */}
-              <div className="mt-3 grid md:grid-cols-3 gap-3">
-                <CompBox title="Парфюм" rows={f.compositions.parfum} />
-                <CompBox title="Гель для душа" rows={f.compositions.gel} />
-                <CompBox title="Диффузор" rows={f.compositions.diffuser} />
-              </div>
-
-              <div className="flex gap-3 mt-4">
-                <button
-                  onClick={() => alert("TODO: редактирование формулы с тремя типами")}
-                  className="rounded-full border px-4 py-1.5 text-sm hover:bg-white hover:text-black transition"
-                >
-                  Редактировать
-                </button>
-                <button
-                  onClick={() => alert("TODO: удалить формулу")}
-                  className="rounded-full border px-4 py-1.5 text-sm hover:bg-white hover:text-black transition"
-                >
-                  Удалить
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        )}
       </div>
-    </section>
-  );
-}
 
-function CompBox({ title, rows }) {
-  return (
-    <div className="rounded-lg border border-white/15 p-3 bg-white/5">
-      <div className="text-sm opacity-80 mb-2">{title}</div>
-      {rows.length ? (
-        <ul className="text-sm space-y-1">
-          {rows.map((r, idx) => (
-            <li key={idx} className="flex justify-between gap-3">
-              <span className="truncate">{r.ingredient}</span>
-              <span className="opacity-80">{r.percent}%</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="text-sm opacity-60">— пусто —</div>
-      )}
-    </div>
+      {/* модалка */}
+      <FormulaFormModal
+        open={openModal}
+        onCancel={() => setOpenModal(false)}
+        onSubmit={handleSubmit}
+        initial={editing}
+      />
+    </section>
   );
 }
