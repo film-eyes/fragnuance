@@ -147,7 +147,7 @@ export default function Formulas() {
                     key={formula.id}
                     className="bg-white/10 backdrop-blur-md p-4 rounded-xl hover:bg-white/20 transition relative"
                   >
-                    <h3 className="text-xl font-serif mb-2">{formula.name}</h3>
+                    <h3 className="text-xl font-serif mb-2 text-white">{formula.name}</h3>
                     {formula.description && (
                       <p className="text-sm text-white/80 mb-2">
                         {formula.description}
