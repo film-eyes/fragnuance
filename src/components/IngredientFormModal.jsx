@@ -6,7 +6,7 @@ const FAMILIES = [
   "абстрактные","гурманские","фруктовые","акватические","минеральные",
   "табачные","амбровые","мускусные", "технические"
 ];
-const NOTES = ["верх", "сердце", "база"];
+const NOTES = ["верх", "сердце", "база", "отдушка"];
 
 export default function IngredientFormModal({ open, initial, onCancel, onSubmit }) {
   const [name, setName] = useState("");

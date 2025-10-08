@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
 
@@ -6,139 +6,147 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [ingredients, setIngredients] = useState([]);
-  const [availableIngredients, setAvailableIngredients] = useState([]);
+  const [ingredientOptions, setIngredientOptions] = useState([]);
 
-  // --- Загружаем ингредиенты из Firestore ---
+  const scrollRef = useRef(null);
+
   useEffect(() => {
     if (!open) return;
+    setName(initial?.name || "");
+    setDescription(initial?.description || "");
+    setIngredients(initial?.ingredients || []);
+  }, [open, initial]);
+
+  // 🔹 Загружаем ингредиенты из Firestore и сортируем по алфавиту
+  useEffect(() => {
     const fetchIngredients = async () => {
       const snapshot = await getDocs(collection(db, "ingredients"));
-      const list = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
       }));
-      setAvailableIngredients(list);
+      list.sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", "ru", { sensitivity: "base" })
+      );
+      setIngredientOptions(list);
     };
     fetchIngredients();
-  }, [open]);
-
-  // --- Автозаполнение при редактировании ---
-  useEffect(() => {
-    if (initial && open) {
-      setName(initial.name || "");
-      setDescription(initial.description || "");
-      setIngredients(
-        (initial.ingredients || []).map((ing) => ({
-          id: ing.id || "",
-          name: ing.name || "",
-          amount: ing.amount || "",
-        }))
-      );
-    } else if (!initial && open) {
-      setName("");
-      setDescription("");
-      setIngredients([]);
-    }
-  }, [initial, open]);
+  }, []);
 
   const handleAddIngredient = () => {
-    setIngredients([...ingredients, { id: "", name: "", amount: "" }]);
+    setIngredients([...ingredients, { name: "", amount: "" }]);
+    // Автопрокрутка вниз
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 50);
   };
 
   const handleChangeIngredient = (index, field, value) => {
-    const updated = [...ingredients];
-    updated[index][field] = value;
-
-    if (field === "id") {
-      const selected = availableIngredients.find((i) => i.id === value);
-      updated[index].name = selected ? selected.name : "";
-    }
-
-    setIngredients(updated);
+    const newIngredients = [...ingredients];
+    newIngredients[index][field] = value;
+    setIngredients(newIngredients);
   };
 
   const handleRemoveIngredient = (index) => {
     setIngredients(ingredients.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const totalDrops = ingredients.reduce(
-      (sum, ing) => sum + (parseFloat(ing.amount) || 0),
-      0
-    );
-    onSubmit({ name, description, ingredients, totalDrops });
+  const handleSave = () => {
+    onSubmit({ name, description, ingredients });
   };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 w-full max-w-2xl text-white relative">
-        <h2 className="text-2xl font-serif mb-4">
-          {initial ? "Редактировать формулу" : "Новая формула"}
-        </h2>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      {/* фон */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onCancel}
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+      {/* окно */}
+      <div className="relative z-10 w-[min(700px,94vw)] max-h-[90vh] overflow-hidden rounded-2xl border border-white/20 bg-zinc-900/95 text-white shadow-xl backdrop-blur-md flex flex-col">
+        {/* верх */}
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <h3 className="font-serif text-2xl">
+            {initial ? "Редактировать формулу" : "Новая формула"}
+          </h3>
+          <button
+            onClick={onCancel}
+            className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 transition"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* контент */}
+        <div
+          ref={scrollRef}
+          className="overflow-y-auto px-6 py-5 space-y-4 flex-1 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+        >
+          {/* Название */}
           <div>
-            <label className="block text-sm mb-1">Название</label>
+            <label className="block text-sm mb-1 opacity-70">Название</label>
             <input
-              type="text"
+              className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder:text-white/50"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-2 rounded-md bg-white/20 text-white outline-none"
-              placeholder="Например: Everyday v2"
-              required
+              placeholder="Введите название формулы"
             />
           </div>
 
+          {/* Описание */}
           <div>
-            <label className="block text-sm mb-1">Описание</label>
+            <label className="block text-sm mb-1 opacity-70">Описание</label>
             <textarea
+              className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 resize-none"
+              rows="3"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-2 rounded-md bg-white/20 text-white outline-none"
-              placeholder="Краткое описание композиции"
+              placeholder="Описание, вдохновение, заметки..."
             />
           </div>
 
+          {/* Список ингредиентов */}
           <div>
-            <label className="block text-sm mb-2">Ингредиенты</label>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+            <label className="block text-sm mb-2 opacity-70">
+              Ингредиенты
+            </label>
+
+            <div className="space-y-2">
               {ingredients.map((ing, index) => (
-                <div
-                  key={index}
-                  className="flex gap-2 items-center bg-white/5 p-2 rounded-lg"
-                >
+                <div key={index} className="flex gap-2 items-center">
                   <select
-                    value={ing.id}
+                    className="flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
+                    value={ing.name}
                     onChange={(e) =>
-                      handleChangeIngredient(index, "id", e.target.value)
+                      handleChangeIngredient(index, "name", e.target.value)
                     }
-                    className="flex-1 bg-white/20 p-2 rounded text-white"
                   >
                     <option value="">Выбери ингредиент...</option>
-                    {availableIngredients.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.name}
+                    {ingredientOptions.map((opt) => (
+                      <option key={opt.id} value={opt.name}>
+                        {opt.name}
                       </option>
                     ))}
                   </select>
-
                   <input
                     type="number"
+                    className="w-20 rounded-lg border border-white/20 bg-white/10 px-2 py-2 text-center text-white"
+                    placeholder="кап."
                     value={ing.amount}
                     onChange={(e) =>
                       handleChangeIngredient(index, "amount", e.target.value)
                     }
-                    className="w-24 p-2 rounded bg-white/20 text-white text-center"
-                    placeholder="капли"
                   />
-
                   <button
-                    type="button"
                     onClick={() => handleRemoveIngredient(index)}
-                    className="text-red-400 hover:text-red-600 text-lg"
+                    className="text-red-400 hover:text-red-500 text-lg"
+                    title="Удалить"
                   >
                     ✕
                   </button>
@@ -147,40 +155,23 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
             </div>
 
             <button
-              type="button"
               onClick={handleAddIngredient}
-              className="mt-3 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition"
+              className="mt-3 text-sm rounded-full border border-white/30 bg-white/10 px-3 py-1.5 hover:bg-white/20 transition"
             >
               + Добавить ингредиент
             </button>
           </div>
+        </div>
 
-          <div className="flex justify-between items-center pt-4 border-t border-white/20">
-            <span className="text-sm text-white/70">
-              Всего капель:{" "}
-              {ingredients.reduce(
-                (sum, ing) => sum + (parseFloat(ing.amount) || 0),
-                0
-              )}
-            </span>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition"
-              >
-                Отмена
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-green-500/70 hover:bg-green-500 rounded-lg transition"
-              >
-                {initial ? "Сохранить" : "Создать"}
-              </button>
-            </div>
-          </div>
-        </form>
+        {/* низ */}
+        <div className="flex justify-end border-t border-white/10 px-6 py-4">
+          <button
+            onClick={handleSave}
+            className="rounded-full bg-green-600 px-5 py-2 text-sm font-medium hover:bg-green-700 transition"
+          >
+            Сохранить
+          </button>
+        </div>
       </div>
     </div>
   );
