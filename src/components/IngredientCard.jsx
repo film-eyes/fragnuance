@@ -41,10 +41,6 @@ export default function IngredientCard({ item, onEdit, onDelete, onOpen }) {
           <span className="opacity-60">Субстантивность:</span>{" "}
           {item.substantivity != null ? `${item.substantivity} ч` : "—"}
         </div>
-        <div className="truncate">
-          <span className="opacity-60">Экстракт (%):</span>{" "}
-          {item.dosage || "—"}
-        </div>
       </div>
 
       {/* Комментарий: показываем 5–6 строк, дальше — скролл */}

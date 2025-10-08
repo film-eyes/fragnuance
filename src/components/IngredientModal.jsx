@@ -3,9 +3,9 @@ export default function IngredientModal({ open, item, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* затемнение фона */}
+      {/* фон */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
@@ -23,9 +23,9 @@ export default function IngredientModal({ open, item, onClose }) {
         </div>
 
         {/* контент */}
-        <div className="grid grid-cols-1 gap-6 px-6 py-5 md:grid-cols-2">
-          {/* левая часть */}
-          <div className="space-y-2 text-sm leading-6">
+        <div className="px-6 py-5 space-y-5">
+          {/* строка свойств */}
+          <div className="grid grid-cols-1 gap-3 text-sm leading-6 sm:grid-cols-3">
             <div>
               <span className="opacity-60">Семейство:</span>{" "}
               {item.family || "—"}
@@ -40,13 +40,11 @@ export default function IngredientModal({ open, item, onClose }) {
             </div>
           </div>
 
-          {/* правая часть */}
-          <div className="space-y-2">
-            <div className="opacity-60 text-sm leading-6">Комментарий</div>
+          {/* комментарий */}
+          <div>
+            <div className="opacity-60 text-sm leading-6 mb-1">Комментарий</div>
             <div className="relative max-h-[50vh] overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-4 leading-7 backdrop-blur-sm scroll-smooth">
               <div className="whitespace-pre-line">{item.comment || "—"}</div>
-
-              {/* мягкий градиент снизу, когда текст длинный */}
               <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-900/95 to-transparent" />
             </div>
           </div>
