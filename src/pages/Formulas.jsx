@@ -9,6 +9,7 @@ import {
   doc,
 } from "firebase/firestore";
 import FormulaFormModal from "../components/FormulaFormModal";
+import FormulaModal from "../components/FormulaModal"; // ✅ добавили модалку просмотра
 
 export default function Formulas() {
   const [formulas, setFormulas] = useState([]);
@@ -16,6 +17,10 @@ export default function Formulas() {
   const [openModal, setOpenModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [sortMode, setSortMode] = useState("alpha"); // "alpha" | "date"
+
+  // 🔹 для просмотра
+  const [openModalView, setOpenModalView] = useState(false);
+  const [activeFormula, setActiveFormula] = useState(null);
 
   // --- Загрузка формул из Firestore ---
   useEffect(() => {
@@ -145,9 +150,15 @@ export default function Formulas() {
                 {sortedFormulas.map((formula) => (
                   <div
                     key={formula.id}
-                    className="bg-white/10 backdrop-blur-md p-4 rounded-xl hover:bg-white/20 transition relative"
+                    onClick={() => {
+                      setActiveFormula(formula);
+                      setOpenModalView(true);
+                    }}
+                    className="bg-white/10 backdrop-blur-md p-4 rounded-xl hover:bg-white/20 transition relative cursor-pointer"
                   >
-                    <h3 className="text-xl font-serif mb-2 text-white">{formula.name}</h3>
+                    <h3 className="text-xl font-serif mb-2 text-white">
+                      {formula.name}
+                    </h3>
                     {formula.description && (
                       <p className="text-sm text-white/80 mb-2">
                         {formula.description}
@@ -170,7 +181,10 @@ export default function Formulas() {
                       </p>
                     )}
 
-                    <div className="flex gap-2 absolute top-3 right-3">
+                    <div
+                      className="flex gap-2 absolute top-3 right-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => handleEdit(formula)}
                         className="text-blue-400 hover:text-blue-500"
@@ -194,12 +208,18 @@ export default function Formulas() {
         </div>
       </main>
 
-      {/* модалка */}
+      {/* модалки */}
       <FormulaFormModal
         open={openModal}
         onCancel={() => setOpenModal(false)}
         onSubmit={handleSubmit}
         initial={editing}
+      />
+
+      <FormulaModal
+        open={openModalView}
+        item={activeFormula}
+        onClose={() => setOpenModalView(false)}
       />
     </section>
   );
