@@ -1,3 +1,4 @@
+// src/components/FormulaFormModal.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -6,140 +7,144 @@ import {
 import { db } from "../firebase";
 import Modal from "./Modal.jsx";
 
-// Вспомогательный тип строки
-const makeEmptyRow = () => ({
-  kind: "ingredient", // "ingredient" | "formula"
-  refId: "",
-  amount: "",
-});
+const COMPONENT_TYPES = [
+  { value: "ingredient", label: "Ингредиент" },
+  { value: "formula", label: "Формула" },
+];
 
 export default function FormulaFormModal({ open, initial, onCancel, onSubmit }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
-  // строки компонентов (ингредиенты и/или формулы)
-  const [rows, setRows] = useState([makeEmptyRow()]);
+  const [rows, setRows] = useState([
+    { type: "ingredient", refId: "", amount: "" },
+  ]);
 
-  // справочники
-  const [ingredientsList, setIngredientsList] = useState([]);
-  const [formulasList, setFormulasList] = useState([]);
+  const [ingredients, setIngredients] = useState([]);
+  const [formulas, setFormulas] = useState([]);
 
   const [touched, setTouched] = useState(false);
-  const [loadingRefs, setLoadingRefs] = useState(false);
 
-  // ==== загрузка списков ингредиентов и формул ====
+  // Загружаем списки ингредиентов и формул
   useEffect(() => {
     if (!open) return;
 
-    const loadRefs = async () => {
-      try {
-        setLoadingRefs(true);
+    const load = async () => {
+      const [ingSnap, formSnap] = await Promise.all([
+        getDocs(collection(db, "ingredients")),
+        getDocs(collection(db, "formulas")),
+      ]);
 
-        const [ingSnap, formSnap] = await Promise.all([
-          getDocs(collection(db, "ingredients")),
-          getDocs(collection(db, "formulas")),
-        ]);
-
-        const ings = ingSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() || {}),
-        }));
-        const forms = formSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() || {}),
-        }));
-
-        // сортируем по имени
-        ings.sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", "ru", { sensitivity: "base" })
-        );
-        forms.sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", "ru", { sensitivity: "base" })
+      const ingList = ingSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", "ru", {
+            sensitivity: "base",
+          })
         );
 
-        setIngredientsList(ings);
-        setFormulasList(forms);
-      } catch (e) {
-        console.error("Ошибка загрузки справочников для формулы:", e);
-      } finally {
-        setLoadingRefs(false);
-      }
+      const formList = formSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", "ru", {
+            sensitivity: "base",
+          })
+        );
+
+      setIngredients(ingList);
+      setFormulas(formList);
     };
 
-    loadRefs();
+    load();
   }, [open]);
 
-  // ==== инициализация при открытии / редактировании ====
+  // Подготовка initial -> локальный стейт (включая старый формат)
   useEffect(() => {
     if (!open) return;
 
     setName(initial?.name ?? "");
     setDescription(initial?.description ?? "");
 
-    if (initial?.ingredients?.length) {
-      const mapped = initial.ingredients.map((item) => {
-        const kind =
-          item.kind ||
-          (item.formulaId ? "formula" : "ingredient"); // бэкап для старых данных
+    const src = initial?.ingredients || [];
 
-        return {
-          kind,
-          refId:
-            kind === "formula"
-              ? item.formulaId || ""
-              : item.ingredientId || "",
-          amount:
-            item.amount === 0 || item.amount
-              ? String(item.amount)
-              : "",
-        };
-      });
-
-      setRows(mapped.length ? mapped : [makeEmptyRow()]);
-    } else {
-      setRows([makeEmptyRow()]);
+    if (!src.length) {
+      setRows([{ type: "ingredient", refId: "", amount: "" }]);
+      setTouched(false);
+      return;
     }
 
+    const mapped = src.map((row) => {
+      // поддержка старого формата:
+      // { ingredientId, amount }  или { formulaId, amount }
+      const legacyIngredientId = row.ingredientId;
+      const legacyFormulaId = row.formulaId;
+
+      const type =
+        row.type ||
+        (legacyFormulaId ? "formula" : "ingredient");
+
+      const refId = row.refId || legacyIngredientId || legacyFormulaId || "";
+
+      return {
+        type,
+        refId,
+        amount:
+          row.amount !== undefined
+            ? String(row.amount)
+            : row.drops !== undefined
+            ? String(row.drops)
+            : "",
+      };
+    });
+
+    setRows(mapped.length ? mapped : [{ type: "ingredient", refId: "", amount: "" }]);
     setTouched(false);
   }, [open, initial]);
 
-  // ==== валидация ====
   const errors = useMemo(() => {
     const e = {};
-    if (!name.trim()) e.name = "Укажите название формулы";
+    if (!name.trim()) e.name = "Укажи название формулы";
 
-    const cleanedRows = rows.filter(
-      (r) => r.refId && r.amount !== ""
+    const anyBadAmount = rows.some(
+      (r) => r.amount !== "" && !/^\d+(\.\d+)?$/.test(r.amount)
     );
-    if (cleanedRows.length === 0) {
-      e.rows = "Добавьте хотя бы один компонент";
-    }
+    if (anyBadAmount) e.amount = "Количество должно быть числом";
 
-    const badAmounts = rows.some(
-      (r) =>
-        r.amount !== "" &&
-        !/^\d+(\.\d+)?$/.test(String(r.amount).replace(",", "."))
-    );
-    if (badAmounts) {
-      e.amount = "Количество должно быть числом";
-    }
+    const anyChosen = rows.some((r) => r.refId && r.amount);
+    if (!anyChosen) e.rows = "Добавь хотя бы один компонент";
 
     return e;
   }, [name, rows]);
 
-  const handleSubmit = (evt) => {
-    evt.preventDefault();
+  const updateRow = (index, patch) => {
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row))
+    );
+  };
+
+  const addRow = () => {
+    setRows((prev) => [
+      ...prev,
+      { type: "ingredient", refId: "", amount: "" },
+    ]);
+  };
+
+  const removeRow = (index) => {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
     setTouched(true);
+
     if (Object.keys(errors).length) return;
 
-    // чистим и приводим строки
     const cleaned = rows
-      .filter((r) => r.refId && r.amount !== "")
+      .filter((r) => r.refId && r.amount !== "" && !isNaN(Number(r.amount)))
       .map((r) => ({
-        kind: r.kind, // "ingredient" | "formula"
-        ingredientId: r.kind === "ingredient" ? r.refId : null,
-        formulaId: r.kind === "formula" ? r.refId : null,
-        amount: parseFloat(String(r.amount).replace(",", ".")) || 0,
+        type: r.type,
+        refId: r.refId,
+        amount: Number(r.amount),
       }));
 
     onSubmit?.({
@@ -149,19 +154,7 @@ export default function FormulaFormModal({ open, initial, onCancel, onSubmit }) 
     });
   };
 
-  const updateRow = (idx, patch) => {
-    setRows((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, ...patch } : row))
-    );
-  };
-
-  const addRow = () => {
-    setRows((prev) => [...prev, makeEmptyRow()]);
-  };
-
-  const removeRow = (idx) => {
-    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
-  };
+  if (!open) return null;
 
   return (
     <Modal
@@ -172,24 +165,28 @@ export default function FormulaFormModal({ open, initial, onCancel, onSubmit }) 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Название */}
         <div>
-          <label className="block text-sm mb-1">Название *</label>
+          <label className="block text-sm mb-1 text-white/80">
+            Название *
+          </label>
           <input
-            className="w-full rounded-lg border px-3 py-2 bg-white"
+            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white placeholder:text-white/40"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Напр.: Аккорд белых цветов"
             autoFocus
           />
           {touched && errors.name && (
-            <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+            <p className="mt-1 text-xs text-red-400">{errors.name}</p>
           )}
         </div>
 
         {/* Описание */}
         <div>
-          <label className="block text-sm mb-1">Описание / идея</label>
+          <label className="block text-sm mb-1 text-white/80">
+            Описание / идея
+          </label>
           <textarea
-            className="w-full rounded-lg border px-3 py-2 bg-white"
+            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white placeholder:text-white/40"
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -198,89 +195,83 @@ export default function FormulaFormModal({ open, initial, onCancel, onSubmit }) 
         </div>
 
         {/* Компоненты */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm font-medium text-white/80">
               Компоненты (ингредиенты и/или формулы)
-            </span>
-            {touched && errors.rows && (
-              <span className="text-xs text-red-500">{errors.rows}</span>
-            )}
+            </p>
           </div>
 
-          <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-black/60">
-            <span className="w-[32%]">Тип</span>
-            <span className="w-[44%]">Выбор из списка</span>
-            <span className="w-[18%] text-right">Кол-во</span>
-            <span className="w-[6%]" />
+          <div className="hidden md:grid grid-cols-[minmax(0,140px)_minmax(0,1fr)_90px_40px] gap-2 text-xs text-white/60 px-1">
+            <span>Тип</span>
+            <span>Выбор из списка</span>
+            <span className="text-right">Кол-во</span>
+            <span />
           </div>
 
           <div className="space-y-2">
-            {rows.map((row, idx) => (
+            {rows.map((row, index) => (
               <div
-                key={idx}
-                className="flex items-center gap-2 rounded-xl border border-black/10 bg-white/70 px-2 py-2"
+                key={index}
+                className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,140px)_minmax(0,1fr)_90px_40px] items-center"
               >
-                {/* тип: ингре / формула */}
+                {/* Тип */}
                 <select
-                  className="w-[32%] rounded-lg border border-black/10 bg-white px-2 py-1 text-sm"
-                  value={row.kind}
+                  className="h-10 rounded-lg border border-white/20 bg-white/5 px-3 text-sm text-white"
+                  value={row.type}
                   onChange={(e) =>
-                    updateRow(idx, { kind: e.target.value, refId: "" })
+                    updateRow(index, { type: e.target.value, refId: "" })
                   }
                 >
-                  <option value="ingredient">Ингредиент</option>
-                  <option value="formula">Формула (аккорд)</option>
+                  {COMPONENT_TYPES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
 
-                {/* выбор конкретного объекта */}
+                {/* Выбор (ингредиент или формула) */}
                 <select
-                  className="w-[44%] rounded-lg border border-black/10 bg-white px-2 py-1 text-sm"
+                  className="h-10 rounded-lg border border-white/20 bg-white/5 px-3 text-sm text-white"
                   value={row.refId}
-                  disabled={loadingRefs}
-                  onChange={(e) => updateRow(idx, { refId: e.target.value })}
+                  onChange={(e) =>
+                    updateRow(index, { refId: e.target.value })
+                  }
                 >
                   <option value="">
-                    {loadingRefs
-                      ? "Загрузка…"
-                      : row.kind === "formula"
+                    {row.type === "formula"
                       ? "Выбери формулу…"
                       : "Выбери ингредиент…"}
                   </option>
 
-                  {row.kind === "ingredient"
-                    ? ingredientsList.map((ing) => (
-                        <option key={ing.id} value={ing.id}>
-                          {ing.name || "(без названия)"}
-                        </option>
-                      ))
-                    : formulasList
-                        // не даём ссылаться на саму себя
-                        .filter((f) => f.id !== initial?.id)
-                        .map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name || "(без названия)"}
-                          </option>
-                        ))}
+                  {(row.type === "formula" ? formulas : ingredients).map(
+                    (item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name || "Без названия"}
+                      </option>
+                    )
+                  )}
                 </select>
 
-                {/* количество */}
+                {/* Кол-во */}
                 <input
-                  className="w-[18%] rounded-lg border border-black/10 bg-white px-2 py-1 text-right text-sm"
-                  value={row.amount}
+                  className="h-10 rounded-lg border border-white/20 bg-white/5 px-2 text-sm text-right text-white"
                   inputMode="decimal"
-                  onChange={(e) =>
-                    updateRow(idx, { amount: e.target.value.replace(",", ".") })
-                  }
                   placeholder="0"
+                  value={row.amount}
+                  onChange={(e) =>
+                    updateRow(index, {
+                      amount: e.target.value.replace(",", "."),
+                    })
+                  }
                 />
 
-                {/* удалить строку */}
+                {/* Удалить строку */}
                 <button
                   type="button"
-                  onClick={() => removeRow(idx)}
-                  className="w-[6%] text-xs text-black/40 hover:text-black"
-                  title="Удалить строку"
+                  onClick={() => removeRow(index)}
+                  className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 text-sm text-white/70 hover:bg-white/15"
+                  title="Удалить компонент"
                 >
                   ✕
                 </button>
@@ -288,31 +279,34 @@ export default function FormulaFormModal({ open, initial, onCancel, onSubmit }) 
             ))}
           </div>
 
-          {touched && errors.amount && (
-            <p className="mt-1 text-xs text-red-600">{errors.amount}</p>
-          )}
-
-          <button
-            type="button"
-            onClick={addRow}
-            className="mt-1 rounded-full border px-4 py-1.5 text-xs hover:bg-black hover:text-white transition"
-          >
-            + Добавить компонент
-          </button>
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={addRow}
+              className="mt-1 inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+            >
+              + Добавить компонент
+            </button>
+            {touched && errors.rows && (
+              <p className="mt-1 text-xs text-red-400">{errors.rows}</p>
+            )}
+            {touched && errors.amount && (
+              <p className="mt-1 text-xs text-red-400">{errors.amount}</p>
+            )}
+          </div>
         </div>
 
-        {/* кнопки внизу */}
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full border px-4 py-2 text-sm hover:bg-black hover:text-white transition"
+            className="rounded-full border border-white/30 px-4 py-2 text-sm text-white hover:bg-white/10"
           >
             Отмена
           </button>
           <button
             type="submit"
-            className="rounded-full border px-4 py-2 text-sm bg-black text-white hover:opacity-90 transition"
+            className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black hover:bg-white/90"
           >
             {initial ? "Сохранить" : "Создать"}
           </button>
