@@ -1,3 +1,5 @@
+// src/components/FormulaFormModal.jsx
+
 import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
@@ -6,10 +8,13 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [ingredients, setIngredients] = useState([]);
+
   const [ingredientOptions, setIngredientOptions] = useState([]);
+  const [formulaOptions, setFormulaOptions] = useState([]);
 
   const scrollRef = useRef(null);
 
+  // заполняем форму при открытии
   useEffect(() => {
     if (!open) return;
     setName(initial?.name || "");
@@ -17,7 +22,7 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
     setIngredients(initial?.ingredients || []);
   }, [open, initial]);
 
-  // 🔹 Загружаем ингредиенты из Firestore и сортируем по алфавиту
+  // 🔹 Загружаем ИНГРЕДИЕНТЫ из Firestore и сортируем по алфавиту
   useEffect(() => {
     const fetchIngredients = async () => {
       const snapshot = await getDocs(collection(db, "ingredients"));
@@ -33,8 +38,28 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
     fetchIngredients();
   }, []);
 
+  // 🔹 Загружаем ФОРМУЛЫ для использования как компоненты
+  useEffect(() => {
+    const fetchFormulas = async () => {
+      const snapshot = await getDocs(collection(db, "formulas"));
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      list.sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", "ru", { sensitivity: "base" })
+      );
+      setFormulaOptions(list);
+    };
+    fetchFormulas();
+  }, []);
+
   const handleAddIngredient = () => {
-    setIngredients([...ingredients, { name: "", amount: "" }]);
+    setIngredients((prev) => [
+      ...prev,
+      { kind: "ingredient", name: "", amount: "" }, // kind — тип компонента
+    ]);
+
     // Автопрокрутка вниз
     setTimeout(() => {
       scrollRef.current?.scrollTo({
@@ -46,7 +71,16 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
 
   const handleChangeIngredient = (index, field, value) => {
     const newIngredients = [...ingredients];
-    newIngredients[index][field] = value;
+    newIngredients[index] = {
+      ...newIngredients[index],
+      [field]: value,
+    };
+
+    // если меняем тип — очищаем выбранное имя
+    if (field === "kind") {
+      newIngredients[index].name = "";
+    }
+
     setIngredients(newIngredients);
   };
 
@@ -55,6 +89,8 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
   };
 
   const handleSave = () => {
+    // сохраняем как есть; старые поля name/amount остаются теми же,
+    // просто у новых компонентов может быть ещё и kind
     onSubmit({ name, description, ingredients });
   };
 
@@ -101,7 +137,7 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
 
           {/* Описание */}
           <div>
-            <label className="block text-sm mb-1 opacity-70">Описание</label>
+            <label className="block text-sm mb-1 opacity-70">Описание / идея</label>
             <textarea
               className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-white placeholder:text-white/50 resize-none"
               rows="3"
@@ -111,54 +147,87 @@ export default function FormulaFormModal({ open, onCancel, onSubmit, initial }) 
             />
           </div>
 
-          {/* Список ингредиентов */}
+          {/* Список компонентов */}
           <div>
             <label className="block text-sm mb-2 opacity-70">
-              Ингредиенты
+              Компоненты (ингредиенты и/или формулы)
             </label>
 
             <div className="space-y-2">
-              {ingredients.map((ing, index) => (
-                <div key={index} className="flex gap-2 items-center">
-                  <select
-                    className="flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
-                    value={ing.name}
-                    onChange={(e) =>
-                      handleChangeIngredient(index, "name", e.target.value)
-                    }
+              {ingredients.map((ing, index) => {
+                const kind = ing.kind || "ingredient";
+                const isIngredient = kind === "ingredient";
+
+                const options = isIngredient
+                  ? ingredientOptions
+                  : formulaOptions;
+
+                return (
+                  <div
+                    key={index}
+                    className="grid grid-cols-[120px,minmax(0,1fr),80px,auto] gap-2 items-center"
                   >
-                    <option value="">Выбери ингредиент...</option>
-                    {ingredientOptions.map((opt) => (
-                      <option key={opt.id} value={opt.name}>
-                        {opt.name}
+                    {/* Тип */}
+                    <select
+                      className="rounded-lg border border-white/20 bg-white/10 px-2 py-2 text-sm text-white"
+                      value={kind}
+                      onChange={(e) =>
+                        handleChangeIngredient(index, "kind", e.target.value)
+                      }
+                    >
+                      <option value="ingredient">Ингредиент</option>
+                      <option value="formula">Формула</option>
+                    </select>
+
+                    {/* Выбор из списка */}
+                    <select
+                      className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
+                      value={ing.name || ""}
+                      onChange={(e) =>
+                        handleChangeIngredient(index, "name", e.target.value)
+                      }
+                    >
+                      <option value="">
+                        {isIngredient
+                          ? "Выбери ингредиент..."
+                          : "Выбери формулу..."}
                       </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    className="w-20 rounded-lg border border-white/20 bg-white/10 px-2 py-2 text-center text-white"
-                    placeholder="кап."
-                    value={ing.amount}
-                    onChange={(e) =>
-                      handleChangeIngredient(index, "amount", e.target.value)
-                    }
-                  />
-                  <button
-                    onClick={() => handleRemoveIngredient(index)}
-                    className="text-red-400 hover:text-red-500 text-lg"
-                    title="Удалить"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+                      {options.map((opt) => (
+                        <option key={opt.id} value={opt.name}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Кол-во капель */}
+                    <input
+                      type="number"
+                      className="w-20 rounded-lg border border-white/20 bg-white/10 px-2 py-2 text-center text-white"
+                      placeholder="0"
+                      value={ing.amount}
+                      onChange={(e) =>
+                        handleChangeIngredient(index, "amount", e.target.value)
+                      }
+                    />
+
+                    {/* Удалить */}
+                    <button
+                      onClick={() => handleRemoveIngredient(index)}
+                      className="text-red-400 hover:text-red-500 text-lg"
+                      title="Удалить"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <button
               onClick={handleAddIngredient}
               className="mt-3 text-sm rounded-full border border-white/30 bg-white/10 px-3 py-1.5 hover:bg-white/20 transition"
             >
-              + Добавить ингредиент
+              + Добавить компонент
             </button>
           </div>
         </div>
