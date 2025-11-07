@@ -59,21 +59,25 @@ export default function Formulas() {
   };
 
   const handleSubmit = async (data) => {
-    if (editing) {
-      const ref = doc(db, "formulas", editing.id);
-      await updateDoc(ref, data);
-      setFormulas(
-        formulas.map((f) => (f.id === editing.id ? { ...f, ...data } : f))
-      );
-    } else {
-      const ref = await addDoc(collection(db, "formulas"), {
-        ...data,
-        createdAt: new Date().toISOString(),
-      });
-      setFormulas([...formulas, { id: ref.id, ...data }]);
-    }
-    setOpenModal(false);
+  // гарантируем, что при СОЗДАНИИ у нас есть createdAt
+  const payload = {
+    ...data,
+    ...(editing ? {} : { createdAt: new Date().toISOString() }),
   };
+
+  if (editing) {
+    const ref = doc(db, "formulas", editing.id);
+    await updateDoc(ref, payload);
+    setFormulas((prev) =>
+      prev.map((f) => (f.id === editing.id ? { ...f, ...payload } : f))
+    );
+  } else {
+    const ref = await addDoc(collection(db, "formulas"), payload);
+    setFormulas((prev) => [...prev, { id: ref.id, ...payload }]);
+  }
+
+  setOpenModal(false);
+};
 
   const sortedFormulas = useMemo(() => {
     const sorted = [...formulas];
